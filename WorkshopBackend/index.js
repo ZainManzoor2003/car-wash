@@ -741,7 +741,7 @@ app.get('/health', (req, res) => {
 });
 
 // MongoDB Connection String
-const MONGODB_URI = "mongodb+srv://ali:ali@cluster0.xkuanbt.mongodb.net/?retryWrites=true&w=majority"
+const MONGODB_URI = "mongodb+srv://zainmanzoor2003_db_user:carwash123@cluster0.yjczpek.mongodb.net/"
 
 console.log('🔌 Attempting to connect to MongoDB...');
 console.log('🔌 Connection string:', MONGODB_URI.replace(/\/\/[^:]+:[^@]+@/, '//***:***@')); // Hide credentials in logs
