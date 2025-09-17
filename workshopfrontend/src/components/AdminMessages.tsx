@@ -1,0 +1,1138 @@
+import React, { useState, useEffect, useRef } from 'react';
+import Navbar from './Navbar';
+import Footer from './Footer';
+import { useNavigate, useParams } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
+
+interface Message {
+  _id: string;
+  bookingId: string;
+  senderName: string;
+  senderEmail: string;
+  senderType: 'customer' | 'admin';
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+interface Booking {
+  _id: string;
+  customer: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  car?: {
+    registration?: string;
+  };
+  service?: {
+    label: string;
+    sub: string;
+  };
+  date: string;
+  time: string;
+  status: string;
+  lastMessage?: {
+    message: string;
+    senderName: string;
+    createdAt: string;
+  };
+  messageCount?: number;
+  unreadCount?: number;
+  // Premium service properties
+  isPremiumService?: boolean;
+  // Seasonal check properties
+  isSeasonalCheck?: boolean;  serviceName?: string;
+  benefitType?: string;
+  totalCost?: number;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  vehicleDetails?: string;
+}
+
+interface AdminMessagesProps {
+  userEmail?: string;
+  userName?: string;
+}
+
+const AdminMessages: React.FC = () => {
+  console.log('🚀 AdminMessages component rendering, localStorage userEmail:', localStorage.getItem('userEmail'));
+
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [recentConversations, setRecentConversations] = useState<any[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [carSearch, setCarSearch] = useState('');
+  const [newMessage, setNewMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [currentUserName, setCurrentUserName] = useState('');
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [isTyping, setIsTyping] = useState(false);
+  const [lastTypingTime, setLastTypingTime] = useState(0);
+  const [showSidebar, setShowSidebar] = useState(false); // Mobile sidebar toggle
+  const [lastMessageCount, setLastMessageCount] = useState(0);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
+  
+  // Use useRef for interval and timeout management
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Get user info from localStorage
+  const userEmail = localStorage.getItem('userEmail');
+  const currentUserEmail = userEmail;
+  
+  // Debug: Log admin status and email
+  const isAdmin = localStorage.getItem('role') === 'admin';
+  const adminEmail = 'j2mechanicslondon@gmail.com';
+  
+  // Ensure admin email is always available
+  const effectiveUserEmail = (isAdmin && currentUserEmail === adminEmail) ? currentUserEmail : adminEmail;
+  
+  console.log('🔍 Admin status check:', {
+    isAdmin,
+    userEmail,
+    currentUserEmail,
+    adminEmail,
+    effectiveUserEmail,
+    role: localStorage.getItem('role'),
+    token: localStorage.getItem('token') ? 'Present' : 'Missing'
+  });
+
+  console.log('🚀 Component state initialized:', {
+    userEmail,
+    currentUserEmail,
+    recentConversationsLength: recentConversations.length,
+    bookingsLength: bookings.length,
+    localStorageKeys: Object.keys(localStorage),
+    userEmailType: typeof userEmail,
+    userEmailTruthy: !!userEmail
+  });
+
+  // Function to fetch current user information
+  const fetchCurrentUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('⚠️ No token found, cannot fetch user info');
+        setCurrentUserName('Admin Staff');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/current-user`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('✅ Current user data fetched:', userData);
+        setCurrentUserName(userData.name || 'Admin Staff');
+        
+        // Also update the userEmail to ensure it matches the admin user in database
+        if (userData.role === 'admin') {
+          localStorage.setItem('userEmail', userData.email);
+          console.log('✅ Updated localStorage userEmail to match admin user:', userData.email);
+        }
+      } else {
+        console.log('⚠️ Failed to fetch user info, using default name');
+        setCurrentUserName('Admin Staff');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching current user:', error);
+      setCurrentUserName('Admin Staff');
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    console.log('🔄 useEffect triggered, currentUserEmail:', currentUserEmail);
+    console.log('🔄 useEffect triggered, userEmail prop:', userEmail);
+    console.log('🔄 useEffect triggered, localStorage userEmail:', localStorage.getItem('userEmail'));
+    console.log('🔄 useEffect triggered, recentConversations length:', recentConversations.length);
+    console.log('🔄 useEffect triggered, bookings length:', bookings.length);
+    
+    // Ensure admin email is set correctly
+    if (localStorage.getItem('role') === 'admin') {
+      const adminEmail = 'j2mechanicslondon@gmail.com';
+      if (localStorage.getItem('userEmail') !== adminEmail) {
+        localStorage.setItem('userEmail', adminEmail);
+        console.log('✅ Updated localStorage userEmail to admin email:', adminEmail);
+      }
+    }
+    
+    // Fetch current user info first
+    fetchCurrentUser();
+    
+    if (currentUserEmail) {
+      console.log('✅ Fetching all bookings and conversations...');
+      fetchAllBookings();
+    } else {
+      console.log('⚠️ No currentUserEmail, but loading data anyway for testing...');
+      fetchAllBookings();
+    }
+  }, [currentUserEmail]);
+
+  // Set up auto-refresh for this booking only if enabled and user is not typing
+  useEffect(() => {
+    // Clear any existing interval first
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = null;
+    }
+
+    if (autoRefreshEnabled && selectedBooking && !isTyping) {
+      refreshIntervalRef.current = setInterval(async () => {
+        // Don't refresh if user is typing or if already loading
+        if (selectedBooking && !messagesLoading && !isTyping) {
+          await fetchMessages(selectedBooking._id, false); // Background refresh
+          // Also refresh conversations to keep them updated
+          await refreshConversations();
+        }
+      }, 5000); // Refresh every 5 seconds for real-time messaging
+    }
+    
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+    };
+  }, [autoRefreshEnabled, selectedBooking?._id, isTyping]); // Added isTyping dependency
+
+  // Auto-refresh conversations every 30 seconds (increased from 10 seconds)
+  useEffect(() => {
+    const conversationInterval = setInterval(async () => {
+      if (recentConversations.length > 0 && !isTyping) {
+        await refreshConversations();
+      }
+    }, 10000); // Refresh conversations every 10 seconds
+    
+    return () => clearInterval(conversationInterval);
+  }, [recentConversations.length, isTyping]); // Added isTyping dependency
+
+  // Cleanup effect to prevent memory leaks and chat disappearance
+  useEffect(() => {
+    return () => {
+      // Clear all intervals and timeouts when component unmounts
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const fetchAllBookings = async () => {
+    try {
+      console.log('🚀 fetchAllBookings started');
+      setLoading(true);
+      
+      // Fetch recent conversations (bookings with messages, sorted by recent activity)
+      console.log('📞 Fetching recent conversations...');
+      console.log('📞 API URL:', `${API_BASE_URL}/api/admin/recent-conversations`);
+      
+      let conversations: any[] = [];
+      try {
+        const conversationsResponse = await fetch(`${API_BASE_URL}/api/admin/recent-conversations`);
+        console.log('📞 Recent conversations response status:', conversationsResponse.status);
+        console.log('📞 Recent conversations response ok:', conversationsResponse.ok);
+        
+        if (!conversationsResponse.ok) {
+          console.error('❌ HTTP Error:', conversationsResponse.status, conversationsResponse.statusText);
+          throw new Error(`HTTP ${conversationsResponse.status}: ${conversationsResponse.statusText}`);
+        }
+        
+        const conversationsData = await conversationsResponse.json();
+        console.log('📞 Recent conversations raw data:', conversationsData);
+        
+        if (conversationsData.success) {
+          conversations = conversationsData.conversations || [];
+          console.log('✅ Conversations loaded:', conversations.length);
+        } else {
+          console.error('❌ Failed to fetch recent conversations:', conversationsData.error);
+          console.log('❌ Full response:', conversationsData);
+        }
+      } catch (fetchError) {
+        console.error('❌ Fetch error for recent conversations:', fetchError);
+        // Don't throw, just continue with empty conversations
+      }
+      
+      // Also fetch all bookings for the dropdown
+      console.log('📞 Fetching all bookings...');
+      console.log('📞 Bookings API URL:', `${API_BASE_URL}/api/bookings`);
+      
+      let allBookings: any[] = [];
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/bookings`);
+        console.log('📞 Bookings response status:', response.status);
+        console.log('📞 Bookings response ok:', response.ok);
+        
+        if (!response.ok) {
+          console.error('❌ HTTP Error for bookings:', response.status, response.statusText);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('📞 Bookings raw data:', data);
+        
+        if (data.success) {
+          allBookings = data.bookings || [];
+          console.log('📊 All bookings data:', allBookings.map((b: any) => ({
+            _id: b._id,
+            service: b.service?.label,
+            serviceName: b.serviceName,
+            isPremiumService: b.isPremiumService,
+            carReg: b.car?.registration,
+            hasCar: !!b.car,
+            hasCarReg: !!b.car?.registration
+          })));
+          console.log('🔍 Premium services found:', allBookings.filter((b: any) => b.isPremiumService).length);
+          // Merge conversations and all bookings, removing duplicates
+          const conversationIds = new Set(conversations.map(c => c._id));
+          const uniqueBookings = allBookings.filter(booking => !conversationIds.has(booking._id));
+          const mergedBookings = [...conversations, ...uniqueBookings];
+          
+          console.log('🔄 Merged bookings:', {
+            conversations: conversations.length,
+            allBookings: allBookings.length,
+            uniqueBookings: uniqueBookings.length,
+            merged: mergedBookings.length
+          });
+          
+          setBookings(mergedBookings);
+      
+      // Fetch seasonal check bookings
+      console.log("📞 Fetching seasonal check bookings...");
+      console.log("📞 Seasonal check bookings API URL:", `${API_BASE_URL}/api/seasonal-check-bookings`);
+      
+      let seasonalBookings: any[] = [];
+      try {
+        const seasonalResponse = await fetch(`${API_BASE_URL}/api/seasonal-check-bookings`);
+        console.log("📞 Seasonal check bookings response status:", seasonalResponse.status);
+        console.log("📞 Seasonal check bookings response ok:", seasonalResponse.ok);
+        
+        if (seasonalResponse.ok) {
+          const seasonalData = await seasonalResponse.json();
+          console.log("📞 Seasonal check bookings raw data:", seasonalData);
+          
+          seasonalBookings = seasonalData || [];
+          console.log("📊 Seasonal check bookings data:", seasonalBookings.map((b: any) => ({
+            _id: b._id,
+            userEmail: b.userEmail,
+            carRegistration: b.carRegistration,
+            carMake: b.carMake,
+            carModel: b.carModel,
+            season: b.season,
+            status: b.status,
+            preferredDate: b.preferredDate,
+            preferredTime: b.preferredTime
+          })));
+          
+          // Convert seasonal check bookings to the same format as regular bookings
+          const formattedSeasonalBookings = seasonalBookings.map((booking: any) => ({
+            _id: booking._id,
+            customer: {
+              name: booking.userEmail.split("@")[0], // Use email prefix as name
+              email: booking.userEmail,
+              phone: "N/A"
+            },
+            car: {
+              registration: booking.carRegistration
+            },
+            service: {
+              label: `Seasonal Check (${booking.season})`,
+              sub: `${booking.carMake} ${booking.carModel}`
+            },
+            date: booking.preferredDate,
+            time: booking.preferredTime,
+            status: booking.status,
+            isSeasonalCheck: true,
+            totalAmount: booking.totalAmount || 0,
+            notes: booking.notes || ""
+          }));
+          
+          console.log("🔄 Adding seasonal check bookings to merged bookings:", formattedSeasonalBookings.length);
+          
+          // Add seasonal check bookings to the merged bookings
+          const allMergedBookings = [...mergedBookings, ...formattedSeasonalBookings];
+          setBookings(allMergedBookings);
+          console.log("✅ All bookings (including seasonal) state set to:", allMergedBookings.length, "items");
+        } else {
+          console.error("❌ Failed to fetch seasonal check bookings:", seasonalResponse.status, seasonalResponse.statusText);
+        }
+      } catch (seasonalError) {
+        console.error("❌ Fetch error for seasonal check bookings:", seasonalError);
+        // Don't throw, just continue without seasonal bookings
+      }          console.log('✅ All bookings state set to:', mergedBookings.length, 'items');
+        } else {
+          console.error('❌ Failed to fetch bookings:', data.error);
+          console.log('❌ Full bookings response:', data);
+        }
+      } catch (fetchError) {
+        console.error('❌ Fetch error for bookings:', fetchError);
+        // Don't throw, just continue with empty bookings
+      }
+      
+      // Enrich recent conversations with car data from allBookings by _id
+      if (conversations.length && allBookings.length) {
+        const bookingById = new Map(allBookings.map((b: any) => [String(b._id), b]));
+        conversations = conversations.map((c: any) => {
+          const full = bookingById.get(String(c._id));
+          const merged = full ? { ...c, car: full.car ?? c.car } : c;
+          return merged;
+        });
+        console.log('🔗 Enriched conversations with car data:', conversations.map((c: any) => ({ id: c._id, reg: c.car?.registration })));
+      }
+      
+      // Save conversations (enriched)
+      if (conversations.length) {
+        setRecentConversations(conversations);
+        console.log('✅ Recent conversations state set to:', conversations.length, 'items');
+      }
+      
+      setLoading(false);
+      console.log('✅ fetchAllBookings completed');
+    } catch (error) {
+      console.error('❌ Error in fetchAllBookings:', error);
+      setLoading(false);
+    }
+  };
+
+  const fetchMessages = async (bookingId: string, isInitialLoad = false) => {
+    try {
+      console.log('🔍 fetchMessages called for booking:', bookingId);
+      
+      // Only show loading on initial load, not on auto-refresh
+      if (isInitialLoad || messages.length === 0) {
+        setMessagesLoading(true);
+      }
+      
+      // Use the effective admin email for API calls
+      const url = `${API_BASE_URL}/api/bookings/${bookingId}/messages?userEmail=${encodeURIComponent(effectiveUserEmail)}`;
+      
+      console.log('🔍 Fetching messages from URL:', url);
+      
+      const response = await fetch(url);
+      console.log('🔍 Messages response status:', response.status);
+      console.log('🔍 Messages response ok:', response.ok);
+      
+      const data = await response.json();
+      console.log('🔍 Messages response data:', data);
+      
+      if (data.success) {
+        console.log('✅ Messages fetched successfully, count:', data.messages?.length || 0);
+        const newMessages = data.messages || [];
+        
+        // Check for new messages
+        if (lastMessageCount > 0 && newMessages.length > lastMessageCount) {
+          setHasNewMessages(true);
+          // Clear the notification after 3 seconds
+          setTimeout(() => setHasNewMessages(false), 3000);
+        }
+        
+        setMessages(newMessages);
+        setLastMessageCount(newMessages.length);
+        
+        // Refresh conversations to update unread counts after messages are marked as read
+        // Refresh conversations to update unread counts
+        await refreshConversations();
+        console.log('✅ Conversations refreshed after messages fetched');
+      } else {
+        console.error('❌ Failed to fetch messages:', data.error);
+        // Don't clear messages on error, just log it
+      }
+    } catch (err) {
+      console.error('❌ Error fetching messages:', err);
+      // Don't clear messages on error, just log it
+      // Keep existing messages to prevent chat disappearance
+    } finally {
+      setMessagesLoading(false);
+    }
+  };
+
+  const refreshMessages = async () => {
+    if (selectedBooking) {
+      // Clear any existing timeout
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      
+      // Debounce the refresh to prevent rapid calls
+      refreshTimeoutRef.current = setTimeout(async () => {
+        setRefreshing(true);
+        try {
+          await fetchMessages(selectedBooking._id, false); // Manual refresh
+        } catch (error) {
+          console.error('Error refreshing messages:', error);
+        } finally {
+          setRefreshing(false);
+        }
+      }, 100); // 100ms debounce
+    }
+  };
+
+  const refreshConversations = async () => {
+    try {
+      console.log('🔄 Refreshing conversations...');
+      const conversationsResponse = await fetch(`${API_BASE_URL}/api/admin/recent-conversations`);
+      const conversationsData = await conversationsResponse.json();
+      
+      if (conversationsData.success) {
+        console.log('✅ Conversations refreshed:', conversationsData.conversations.length, 'conversations');
+        console.log('📊 Conversations data:', conversationsData.conversations.map((c: any) => ({
+          service: c.service?.label,
+          carReg: c.car?.registration,
+          hasCar: !!c.car,
+          hasCarReg: !!c.car?.registration
+        })));
+        console.log('📊 Unread counts:', conversationsData.conversations.map((c: any) => ({ service: c.service.label, unread: c.unreadCount })));
+        
+        // Enrich with bookings state (if available)
+        if (bookings.length) {
+          const bookingById = new Map(bookings.map((b: any) => [String(b._id), b]));
+          const enriched = conversationsData.conversations.map((c: any) => {
+            const full = bookingById.get(String(c._id));
+            return full ? { ...c, car: full.car ?? c.car } : c;
+          });
+          console.log('🔁 Enriched refreshed conversations with car:', enriched.map((c: any) => ({ id: c._id, reg: c.car?.registration })));
+          setRecentConversations(enriched);
+        } else {
+          setRecentConversations(conversationsData.conversations);
+        }
+      } else {
+        console.error('❌ Failed to refresh conversations:', conversationsData.error);
+      }
+    } catch (err) {
+      console.error('❌ Error refreshing conversations:', err);
+    }
+  };
+
+  // Normalize registration strings: lowercase, remove spaces and non-alphanumerics
+  const normalizeReg = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Filter conversations by car registration number
+  const filteredRecentConversations = recentConversations.filter((c) => {
+    const term = normalizeReg(carSearch.trim());
+    if (!term) return true;
+    const reg = normalizeReg(((c as any)?.car?.registration) || '');
+    return reg.includes(term);
+  });
+
+  const filteredAllBookings = bookings.filter((b) => {
+    const term = normalizeReg(carSearch.trim());
+    if (!term) return true;
+    const reg = normalizeReg((b?.car?.registration) || '');
+    return reg.includes(term);
+  });
+
+  const selectBooking = async (booking: Booking) => {
+    // Close sidebar on mobile after selecting
+    setShowSidebar(false);
+
+    // Clear any existing interval
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = null;
+    }
+
+    setSelectedBooking(booking);
+    await fetchMessages(booking._id, true); // Initial load with loading state
+    
+    // Set up auto-refresh for this booking only if enabled
+    if (autoRefreshEnabled) {
+      refreshIntervalRef.current = setInterval(async () => {
+        if (selectedBooking && selectedBooking._id === booking._id) {
+          await fetchMessages(booking._id, false); // Background refresh
+        }
+      }, 5000); // Refresh every 5 seconds
+    }
+  };
+
+  const toggleAutoRefresh = () => {
+    const newState = !autoRefreshEnabled;
+    setAutoRefreshEnabled(newState);
+    
+    if (newState) {
+      // Enable auto-refresh
+      if (selectedBooking) {
+        refreshIntervalRef.current = setInterval(async () => {
+          if (selectedBooking) {
+            await fetchMessages(selectedBooking._id, false); // Background refresh
+            await refreshConversations(); // Also refresh conversations to keep them updated
+          }
+        }, 5000);
+      }
+    } else {
+      // Disable auto-refresh
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    }
+  };
+
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedBooking) return;
+
+    // Use the effective admin email from component state
+    const emailToUse = effectiveUserEmail;
+
+    console.log('🚀 sendMessage called with:', {
+      message: newMessage.trim(),
+      senderName: currentUserName,
+      senderEmail: emailToUse,
+      senderType: 'admin',
+      bookingId: selectedBooking._id
+    });
+
+    try {
+      setSending(true);
+      const messageData = {
+        message: newMessage.trim(),
+        senderName: currentUserName,
+        senderEmail: emailToUse,
+        senderType: 'admin'
+      };
+
+      console.log('📤 Sending message data:', messageData);
+
+      const response = await fetch(`${API_BASE_URL}/api/bookings/${selectedBooking._id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageData)
+      });
+
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response ok:', response.ok);
+
+      const data = await response.json();
+      console.log('📥 Response data:', data);
+      
+      if (data.success) {
+        console.log('✅ Message sent successfully');
+        setNewMessage('');
+        // Refresh messages to show the new one
+        await fetchMessages(selectedBooking._id, false); // Refresh after sending
+        // Also refresh conversations to update the order
+        await refreshConversations();
+      } else {
+        console.error('❌ Failed to send message:', data.error);
+        setError('Failed to send message: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('❌ Error sending message:', err);
+      setError('Error sending message: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatLastMessageTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    
+    if (diffInHours < 1) {
+      return 'Just now';
+    } else if (diffInHours < 24) {
+      return `${Math.floor(diffInHours)}h ago`;
+    } else {
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return '#4CAF50';
+      case 'in-progress':
+        return '#ffd700';
+      case 'confirmed':
+        return '#2196F3';
+      case 'cancelled':
+        return '#f44336';
+      default:
+        return '#888';
+    }
+  };
+
+  // Auto-scroll to bottom function
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Smart auto-scroll - only scroll if user is near bottom
+  const smartScrollToBottom = () => {
+    const messagesContainer = document.querySelector('[style*="maxHeight: 300px"]') as HTMLElement;
+    if (messagesContainer) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100; // Within 100px of bottom
+      
+      if (isNearBottom) {
+        scrollToBottom();
+      }
+    }
+  };
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    smartScrollToBottom();
+  }, [messages]);
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <div style={{ background: '#111', minHeight: '100vh', padding: '48px 24px' }}>
+          <div style={{ maxWidth: 700, margin: '0 auto', textAlign: 'center', color: '#fff' }}>
+            <div>Loading bookings...</div>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Navbar />
+      <style>{`
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        /* Responsive grid */
+        #ames .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+        /* Sidebar panel for mobile */
+        #ames .admin-sidebar { position: relative; }
+        #ames .sidebar-drawer { display: none; }
+        #ames .overlay { display: none; }
+        @media (max-width: 900px) {
+          #ames .grid { grid-template-columns: 1fr; }
+          #ames .admin-sidebar { display: none; }
+          #ames .sidebar-drawer { 
+            display: block; position: fixed; top: 0; left: 0; height: 100vh; width: 90%; max-width: 420px;
+            background: #111; border-right: 1px solid #333; overflow-y: auto; z-index: 1000;
+            transform: translateX(-100%); transition: transform 0.3s ease-in-out;
+          }
+          #ames .sidebar-drawer.open { transform: translateX(0); }
+          #ames .overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; }
+        }
+      `}</style>
+      <div id="ames" style={{ background: '#111', minHeight: '100vh', padding: 0, paddingTop: '150px' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(24px, 6vw, 48px) clamp(16px, 4vw, 24px)' }}>
+          <div style={{ marginBottom: '24px' }}>
+            <button 
+              onClick={() => navigate('/dashboard')}
+              style={{
+                background: 'transparent',
+                color: '#ffd700',
+                border: '2px solid #ffd700',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                marginBottom: '16px',
+                fontWeight: 600
+              }}
+            >
+              ← Back to Dashboard
+            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div>
+                <h1 style={{ color: '#fff', fontWeight: 700, fontSize: 'clamp(1.8rem, 5vw, 2.2rem)', marginBottom: 6 }}>Admin Messages</h1>
+                <div style={{ color: '#bdbdbd', fontSize: 'clamp(0.95rem, 3vw, 1.15rem)' }}>Manage customer communications across all bookings</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setShowSidebar(true)}
+                  style={{
+                    background: '#ffd700', color: '#111', padding: '10px 16px', borderRadius: 8, border: 'none',
+                    fontWeight: 700, cursor: 'pointer', fontSize: 'clamp(0.85rem, 2.5vw, 1rem)'
+                  }}
+                >
+                  📋 Services
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ 
+              background: '#ff4444', color: '#fff', padding: 16, borderRadius: 8, marginBottom: 24, textAlign: 'center'
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Overlay for mobile */}
+          {showSidebar && (
+            <div className="overlay" onClick={() => setShowSidebar(false)} />
+          )}
+          {/* Mobile drawer */}
+          <div className={`sidebar-drawer ${showSidebar ? 'open' : ''}`}>
+            <div style={{ padding: 16, borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ color: '#ffd700', margin: 0, fontSize: '1.2rem' }}>Conversations & Bookings</h2>
+              <button onClick={() => setShowSidebar(false)} style={{ background: 'none', color: '#fff', border: 'none', fontSize: 22, cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ padding: 16 }}>
+              {/* Reuse the sidebar content for mobile */}
+              <div>
+                {/* Recent Conversations Section */}
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <h2 style={{ color: '#ffd700', fontSize: '1.2rem', margin: 0 }}>💬 Recent Conversations ({filteredRecentConversations.length})</h2>
+                    <input value={carSearch} onChange={(e) => setCarSearch(e.target.value)} placeholder="Search by car number" style={{ background: '#1a1a1a', color: '#fff', border: '1px solid #333', borderRadius: 8, padding: '8px 12px', width: 200 }} />
+                    {carSearch && (
+                      <button onClick={() => setCarSearch('')} style={{ background: '#444', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>Clear</button>
+                    )}
+                  </div>
+                  <div>
+                    {filteredRecentConversations.length === 0 ? (
+                      <div style={{ background: '#1a1a1a', padding: 20, borderRadius: 12, textAlign: 'center', color: '#bdbdbd', border: '1px solid #333' }}>No conversations</div>
+                    ) : (
+                      filteredRecentConversations.map((conversation) => (
+                        <div key={conversation._id} style={{ background: selectedBooking?._id === conversation._id ? '#333' : '#232323', padding: 16, borderRadius: 12, marginBottom: 12, border: `2px solid ${selectedBooking?._id === conversation._id ? '#ffd700' : '#333'}`, cursor: 'pointer', position: 'relative' }} onClick={() => selectBooking(conversation)}>
+                          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#ffd700', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>
+                              {conversation.service?.label} - {conversation.service?.sub}
+                              {(conversation as any)?.car?.registration && (
+                                <span style={{ color: '#bdbdbd', marginLeft: 8 }}>• {(conversation as any).car.registration}</span>
+                              )}
+                            </span>
+                            {conversation.unreadCount && conversation.unreadCount > 0 && (
+                              <span style={{
+                                background: '#ff4444',
+                                color: '#fff',
+                                borderRadius: '50%',
+                                padding: '4px 8px',
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                minWidth: '20px',
+                                textAlign: 'center',
+                                animation: 'pulse 2s infinite'
+                              }}>
+                                {conversation.unreadCount > 9 ? '9+' : conversation.unreadCount}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ color: '#bdbdbd', fontSize: '0.85rem', marginBottom: 6 }}>{formatDate(conversation.date)} at {conversation.time}</div>
+                          <div style={{ color: '#fff', fontSize: '0.9rem', marginBottom: 6 }}>Customer: {conversation.customer.name}</div>
+                          {conversation.lastMessage && (
+                            <div style={{ color: '#aaa', fontSize: '0.8rem', fontStyle: 'italic', marginTop: 8, padding: 8, background: '#1a1a1a', borderRadius: 6 }}>
+                              Last: "{conversation.lastMessage.message.substring(0, 50)}..." - {conversation.lastMessage.senderName}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* All Bookings Section */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <h2 style={{ color: '#ffd700', fontSize: '1.2rem', margin: 0 }}>📋 All Bookings ({filteredAllBookings.length})</h2>
+                    <input value={carSearch} onChange={(e) => setCarSearch(e.target.value)} placeholder="Search by car number" style={{ background: '#1a1a1a', color: '#fff', border: '1px solid #333', borderRadius: 8, padding: '8px 12px', width: 200 }} />
+                    {carSearch && (
+                      <button onClick={() => setCarSearch('')} style={{ background: '#444', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>Clear</button>
+                    )}
+                  </div>
+                  <div>
+                    {filteredAllBookings.map((booking) => (
+                      <div key={booking._id} style={{ 
+                        background: selectedBooking?._id === booking._id ? '#333' : (booking.isSeasonalCheck ? '#2e1a1a' : (booking.isPremiumService ? '#1a2e1a' : '#232323')), 
+                        padding: 16, 
+                        borderRadius: 12, 
+                        marginBottom: 12, 
+                        border: `2px solid ${selectedBooking?._id === booking._id ? '#ffd700' : (booking.isSeasonalCheck ? '#FFA500' : (booking.isPremiumService ? '#4CAF50' : '#333'))}`, 
+                        cursor: 'pointer' 
+                      }} onClick={() => selectBooking(booking)}>
+                        <div style={{ fontWeight: 700, fontSize: '1rem', color: '#ffd700', marginBottom: 6 }}>
+                          {booking.isSeasonalCheck ? (
+
+                            <>
+
+                              🌟 {booking.service?.label}
+
+                              <span style={{ color: '#FFA500', marginLeft: 8, fontSize: '0.8rem' }}>SEASONAL</span>
+
+                            </>
+
+                          ) : booking.isPremiumService ? (
+
+                            <>
+
+                              💎 {booking.serviceName}
+
+                              <span style={{ color: '#4CAF50', marginLeft: 8, fontSize: '0.8rem' }}>FREE</span>
+
+                            </>
+
+                          ) : (
+
+                            `${booking.service?.label || 'Unknown Service'} - ${booking.service?.sub || 'Service'}`
+
+                          )}
+                          {booking.car?.registration && <span style={{ color: '#bdbdbd', marginLeft: 8 }}>• {booking.car.registration}</span>}
+                        </div>
+                        <div style={{ color: '#bdbdbd', fontSize: '0.85rem', marginBottom: 6 }}>{formatDate(booking.date)} at {booking.time}</div>
+                        <div style={{ color: '#fff', fontSize: '0.9rem', marginBottom: 6 }}>Customer: {booking.customer.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid">
+            {/* Bookings List - Desktop sidebar */}
+            <div className="admin-sidebar">
+              {/* Recent Conversations Section */}
+              <div style={{ marginBottom: '32px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <h2 style={{ color: '#ffd700', fontSize: '1.5rem', margin: 0 }}>
+                      💬 Recent Conversations ({filteredRecentConversations.length})
+                    </h2>
+                    <input
+                      value={carSearch}
+                      onChange={(e) => setCarSearch(e.target.value)}
+                      placeholder="Search by car number"
+                      style={{
+                        background: '#1a1a1a',
+                        color: '#fff',
+                        border: '1px solid #333',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        width: '220px'
+                      }}
+                    />
+                    {carSearch && (
+                      <button
+                        onClick={() => setCarSearch('')}
+                        style={{
+                          background: '#444', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600
+                        }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {recentConversations.length === 0 ? (
+                    <div style={{ background: '#1a1a1a', padding: 40, borderRadius: 12, textAlign: 'center', color: '#bdbdbd', border: '1px solid #333' }}>
+                      <div style={{ fontSize: '1.1rem', marginBottom: 12, color: '#888' }}>📭 No conversations yet</div>
+                      <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: 15 }}>
+                        {loading ? 'Loading conversations...' : 'When customers send messages, they will appear here as recent conversations.'}
+                      </div>
+                    </div>
+                  ) : (
+                    filteredRecentConversations.map((conversation) => (
+                      <div key={conversation._id} style={{ background: selectedBooking?._id === conversation._id ? '#333' : '#232323', padding: 20, borderRadius: 12, marginBottom: 16, border: `2px solid ${selectedBooking?._id === conversation._id ? '#ffd700' : '#333'}`, cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative' }} onClick={() => selectBooking(conversation)}>
+                        <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#ffd700', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>
+                            {conversation.service?.label} - {conversation.service?.sub}
+                            {(conversation as any)?.car?.registration && (
+                              <span style={{ color: '#bdbdbd', marginLeft: 8 }}>• {(conversation as any).car.registration}</span>
+                            )}
+                          </span>
+                          {conversation.unreadCount && conversation.unreadCount > 0 && (
+                            <span style={{
+                              background: '#ff4444',
+                              color: '#fff',
+                              borderRadius: '50%',
+                              padding: '6px 10px',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              minWidth: '24px',
+                              textAlign: 'center',
+                              animation: 'pulse 2s infinite',
+                              boxShadow: '0 2px 8px rgba(255, 68, 68, 0.3)'
+                            }}>
+                              {conversation.unreadCount > 9 ? '9+' : conversation.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ color: '#bdbdbd', fontSize: '0.9rem', marginBottom: 8 }}>{formatDate(conversation.date)} at {conversation.time}</div>
+                        <div style={{ color: '#fff', fontSize: '0.9rem', marginBottom: 8 }}>Customer: {conversation.customer.name}</div>
+                        {conversation.lastMessage && (
+                          <div style={{ color: '#aaa', fontSize: '0.85rem', fontStyle: 'italic', marginTop: 12, padding: 10, background: '#1a1a1a', borderRadius: 8, borderLeft: '3px solid #ffd700' }}>
+                            <div style={{ marginBottom: 4, color: '#ffd700', fontSize: '0.8rem' }}>Last message:</div>
+                            "{conversation.lastMessage.message.substring(0, 60)}..." 
+                            <div style={{ marginTop: 4, color: '#888', fontSize: '0.75rem' }}>
+                              - {conversation.lastMessage.senderName}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* All Bookings Section */}
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                  <h2 style={{ color: '#ffd700', fontSize: '1.5rem', margin: 0 }}>
+                    📋 All Bookings ({filteredAllBookings.length})
+                  </h2>
+                  <input value={carSearch} onChange={(e) => setCarSearch(e.target.value)} placeholder="Search by car number" style={{ background: '#1a1a1a', color: '#fff', border: '1px solid #333', borderRadius: 8, padding: '8px 12px', width: 220 }} />
+                  {carSearch && (
+                    <button onClick={() => setCarSearch('')} style={{ background: '#444', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>Clear</button>
+                  )}
+                </div>
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {filteredAllBookings.map((booking) => (
+                    <div key={booking._id} style={{ 
+                        background: selectedBooking?._id === booking._id ? '#333' : (booking.isPremiumService ? '#1a2e1a' : '#232323'), 
+                        padding: 20, 
+                        borderRadius: 12, 
+                        marginBottom: 16, 
+                        border: `2px solid ${selectedBooking?._id === booking._id ? '#ffd700' : (booking.isPremiumService ? '#4CAF50' : '#333')}`, 
+                        cursor: 'pointer', 
+                        transition: 'all 0.2s ease' 
+                      }} onClick={() => selectBooking(booking)}>
+                      <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#ffd700', marginBottom: 8 }}>
+                        {booking.isPremiumService ? (
+
+                          <>
+
+                            💎 {booking.serviceName}
+
+                            <span style={{ color: '#4CAF50', marginLeft: 8, fontSize: '0.8rem' }}>FREE</span>
+
+                          </>
+
+                        ) : (
+
+                          `${booking.service?.label || 'Unknown Service'} - ${booking.service?.sub || 'Service'}`
+
+                        )}
+                        {booking.car?.registration && (<span style={{ color: '#bdbdbd', marginLeft: 8 }}>• {booking.car.registration}</span>)}
+                      </div>
+                      <div style={{ color: '#bdbdbd', fontSize: '0.9rem', marginBottom: 8 }}>{formatDate(booking.date)} at {booking.time}</div>
+                      <div style={{ color: '#fff', fontSize: '0.9rem', marginBottom: 8 }}>Customer: {booking.customer.name}</div>
+                      <div style={{ color: getStatusColor(booking.status), fontSize: '0.9rem', fontWeight: 600, textTransform: 'capitalize' }}>Status: {booking.status}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Messages Panel */}
+            <div>
+              {selectedBooking ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div>
+                      <h2 style={{ color: '#ffd700', fontSize: 'clamp(1.2rem, 4vw, 1.5rem)', fontWeight: 600, marginBottom: 4 }}>
+                        Messages - {selectedBooking.customer.name}
+                      </h2>
+                      <div style={{ color: hasNewMessages ? '#4CAF50' : '#888', fontSize: '0.9rem', fontWeight: hasNewMessages ? '600' : 'normal' }}>
+                        {hasNewMessages ? '✨ New messages received!' : (autoRefreshEnabled ? (messagesLoading ? '🔄 Checking for new messages...' : '🔄 Auto-refresh active (5s)') : '⏸️ Auto-refresh paused')}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button onClick={toggleAutoRefresh} style={{ background: autoRefreshEnabled ? '#4CAF50' : '#666', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem' }}>
+                        {autoRefreshEnabled ? '🔄' : '⏸️'} {autoRefreshEnabled ? 'Auto' : 'Paused'}
+                      </button>
+                      <button onClick={refreshMessages} disabled={refreshing} style={{ background: refreshing ? '#666' : '#17a2b8', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: refreshing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '0.8rem' }}>
+                        {refreshing ? '⏳' : '🔄'} {refreshing ? 'Refreshing...' : 'Refresh'}
+                      </button>
+                      <button onClick={() => setShowSidebar(true)} style={{ background: '#ffd700', color: '#111', border: 'none', borderRadius: 6, padding: '6px 12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>📋 Services</button>
+                    </div>
+                  </div>
+                  <div style={{ background: '#232323', padding: 20, borderRadius: 12, border: '1px solid #333', marginBottom: 20 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, color: '#fff', marginBottom: 20 }}>
+                      <div><strong style={{ color: '#ffd700' }}>Service:</strong> {selectedBooking.isPremiumService ? selectedBooking.serviceName : (selectedBooking.service?.label || 'Unknown Service')}</div>
+                      <div><strong style={{ color: '#ffd700' }}>Date:</strong> {formatDate(selectedBooking.date)}</div>
+                      <div><strong style={{ color: '#ffd700' }}>Customer:</strong> {selectedBooking.customer.name}</div>
+                      <div><strong style={{ color: '#ffd700' }}>Email:</strong> {selectedBooking.customer.email}</div>
+                    </div>
+                  </div>
+
+                  {/* Messages */}
+                  <div style={{ marginBottom: 24 }}>
+                    <h3 style={{ color: '#ffd700', marginBottom: 16, fontSize: 'clamp(1rem, 3vw, 1.2rem)' }}>
+                      Conversation ({messages.length} messages)
+                    </h3>
+                    <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 20 }}>
+                      {messagesLoading ? (
+                        <div style={{ background: '#1a1a1a', padding: 20, borderRadius: 8, textAlign: 'center', color: '#bdbdbd', border: '1px solid #444' }}>Loading messages...</div>
+                      ) : messages.length === 0 ? (
+                        <div style={{ background: '#1a1a1a', padding: 20, borderRadius: 8, textAlign: 'center', color: '#bdbdbd', border: '1px solid #444' }}>No messages yet. Start the conversation!</div>
+                      ) : (
+                        messages.map((message) => (
+                          <div key={message._id} style={{ display: 'flex', justifyContent: message.senderType === 'admin' ? 'flex-end' : 'flex-start' }}>
+                            <div style={{ background: '#1a1a1a', padding: 16, borderRadius: 12, marginBottom: 12, border: '1px solid #444', borderLeft: `4px solid ${message.senderType === 'admin' ? '#ffd700' : '#4CAF50'}`, maxWidth: '85%' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <div style={{ color: message.senderType === 'admin' ? '#ffd700' : '#4CAF50', fontWeight: 700, fontSize: '0.9rem' }}>
+                                  {message.senderName}{message.senderType === 'admin' && ' (Staff)'}
+                                </div>
+                                <div style={{ color: '#888', fontSize: '0.8rem', marginLeft: 12 }}>{formatDate(message.createdAt)}</div>
+                              </div>
+                              <div style={{ color: '#fff', lineHeight: 1.5, fontSize: '0.95rem', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+                                {message.message}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  </div>
+
+                  {/* Send Message Form */}
+                  <div style={{ background: '#232323', padding: 20, borderRadius: 12, border: '1px solid #333' }}>
+                    <h3 style={{ color: '#ffd600', marginBottom: 16, fontSize: 'clamp(1rem, 3vw, 1.1rem)' }}>
+                      Send Message to {selectedBooking.customer.name}
+                    </h3>
+                    <form onSubmit={sendMessage}>
+                      <textarea value={newMessage} onChange={(e) => { setNewMessage(e.target.value); setIsTyping(true); setLastTypingTime(Date.now()); setTimeout(() => { if (Date.now() - lastTypingTime > 2000) setIsTyping(false); }, 2000); }} onBlur={() => setIsTyping(false)} placeholder="Type your message here..." style={{ width: '100%', minHeight: 80, padding: 12, borderRadius: 6, border: '1px solid #444', background: '#1a1a1a', color: '#fff', fontSize: 14, resize: 'vertical', marginBottom: 16 }} disabled={sending} />
+                      <button type="submit" disabled={!newMessage.trim() || sending} style={{ background: newMessage.trim() && !sending ? '#ffd700' : '#444', color: newMessage.trim() && !sending ? '#111' : '#888', padding: '10px 20px', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: newMessage.trim() && !sending ? 'pointer' : 'not-allowed', opacity: newMessage.trim() && !sending ? 1 : 0.6 }}>
+                        {sending ? 'Sending...' : 'Send Message'}
+                      </button>
+                    </form>
+                  </div>
+                </>
+              ) : (
+                <div style={{ background: '#232323', padding: 40, borderRadius: 12, textAlign: 'center', color: '#bdbdbd', border: '1px solid #333' }}>
+                  <div style={{ fontSize: '1.2rem', marginBottom: 16 }}>Select a booking to view messages</div>
+                  <div style={{ fontSize: '0.9rem', color: '#888' }}>Tap 📋 Services to choose a conversation or booking</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      <Footer />
+    </>
+  );
+};
+
+export default AdminMessages; 

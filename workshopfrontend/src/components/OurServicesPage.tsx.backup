@@ -1,0 +1,376 @@
+import React, { useState, useEffect, useRef } from 'react';
+import QuoteRequestModal from './QuoteRequestModal';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { API_BASE_URL } from '../config';
+gsap.registerPlugin(ScrollTrigger);
+
+type ApiService = { 
+  _id: string; 
+  label: string; 
+  sub: string; 
+  price?: number; 
+  category?: string; 
+  description?: string;
+  isPremiumOnly?: boolean;
+  premiumBenefit?: string;
+  labourCost?: number;
+};
+
+type MembershipInfo = {
+  membershipType: string;
+  benefits: {
+    labourDiscount: number;
+    freeChecks: number;
+    fluidTopUps: number;
+    motDiscount: number;
+    referralCredits: number;
+  };
+};
+
+type Service = {
+  id: number;
+  category: string;
+  title: string;
+  duration: string;
+  details: string;
+  isPremiumOnly?: boolean;
+  premiumBenefit?: string;
+  labourCost?: number;
+};
+
+const fallbackServiceData: Service[] = [
+  {
+    id: 1,
+    category: 'Maintenance',
+    title: 'Full Service',
+    duration: '3-4 hours',
+    details: 'Comprehensive service including oil change, all fluid checks and top-ups, brake inspection, air filter replacement, and full vehicle health check with diagnostic scan.',
+  },
+  {
+    id: 2,
+    category: 'Maintenance',
+    title: 'Interim Service',
+    duration: '1-2 hours',
+    details: 'Basic service including oil and filter change, fluid top-ups, and essential safety checks.',
+  },
+  {
+    id: 3,
+    category: 'Diagnostics',
+    title: 'Diagnostics',
+    duration: '1 hour',
+    details: 'Full vehicle diagnostics scan to identify issues and error codes.',
+  },
+  {
+    id: 4,
+    category: 'Repairs',
+    title: 'Brake Replacement',
+    duration: '2-3 hours',
+    details: 'Replacement of brake pads and discs, including safety checks.',
+  },
+  {
+    id: 5,
+    category: 'Maintenance',
+    title: 'Tyre Replacement',
+    duration: '1 hour',
+    details: 'Professional tyre replacement with quality tyres and balancing.',
+  },
+  {
+    id: 6,
+    category: 'Repairs',
+    title: 'Engine Repair',
+    duration: '4-6 hours',
+    details: 'Diagnosis and repair of engine issues, including component replacement.',
+  },
+  {
+    id: 7,
+    category: 'Maintenance',
+    title: 'MOT Test',
+    duration: '1 hour',
+    details: 'Annual MOT test to ensure your vehicle meets safety and environmental standards.',
+  },
+  {
+    id: 8,
+    category: 'Repairs',
+    title: 'Clutch Replacement',
+    duration: '4-5 hours',
+    details: 'Complete clutch replacement including flywheel inspection and adjustment.',
+  },
+  {
+    id: 9,
+    category: 'Maintenance',
+    title: 'Air Conditioning Service',
+    duration: '2-3 hours',
+    details: 'AC system service including gas recharge, filter replacement, and leak testing.',
+  },
+  {
+    id: 10,
+    category: 'Repairs',
+    title: 'Transmission Repair',
+    duration: '6-8 hours',
+    details: 'Automatic or manual transmission diagnosis and repair services.',
+  },
+  {
+    id: 11,
+    category: 'Maintenance',
+    title: 'Battery Replacement',
+    duration: '30 minutes',
+    details: 'Professional battery replacement with testing and disposal of old battery.',
+  },
+  {
+    id: 12,
+    category: 'Repairs',
+    title: 'Suspension Repair',
+    duration: '3-4 hours',
+    details: 'Suspension system diagnosis and repair including shock absorbers and springs.',
+  }
+];
+
+const OurServicesPage: React.FC = () => {
+  const [services, setServices] = useState<Service[]>(fallbackServiceData);
+  const [selected, setSelected] = useState('All');
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [selectedServiceForQuote, setSelectedServiceForQuote] = useState<Service | null>(null);
+  const [membershipInfo, setMembershipInfo] = useState<MembershipInfo | null>(null);
+  const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
+
+  const categories = ['All', 'Maintenance', 'Repairs', 'Diagnostics', 'Premium Benefits'];
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/services`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.length > 0) {
+            const formattedServices: Service[] = data.map((service: ApiService, index: number) => ({
+              id: index + 1,
+              category: service.category || 'General',
+              title: service.label,
+              duration: service.sub || '1-2 hours',
+              details: service.description || 'Professional service with quality workmanship.',
+              isPremiumOnly: service.isPremiumOnly || false,
+              premiumBenefit: service.premiumBenefit,
+              labourCost: service.labourCost
+            }));
+            setServices(formattedServices);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching services:', error);
+      }
+    };
+
+    const fetchMembershipInfo = async () => {
+      try {
+        const userEmail = localStorage.getItem('userEmail');
+        if (userEmail) {
+          const response = await fetch(`${API_BASE_URL}/api/membership/${userEmail}`);
+          if (response.ok) {
+            const data = await response.json();
+            setMembershipInfo(data);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching membership info:', error);
+      }
+    };
+
+    fetchServices();
+    fetchMembershipInfo();
+  }, []);
+
+  useEffect(() => {
+    const cards = cardsRef.current.filter(Boolean);
+    
+    gsap.fromTo(cards, 
+      { 
+        opacity: 0, 
+        y: 50,
+        scale: 0.9
+      },
+      { 
+        opacity: 1, 
+        y: 0,
+        scale: 1,
+        duration: 0.6,
+        stagger: 0.1,
+        ease: "power2.out"
+      }
+    );
+
+    cards.forEach((card, index) => {
+      ScrollTrigger.create({
+        trigger: card,
+        start: "top 80%",
+        onEnter: () => {
+          gsap.to(card, {
+            scale: 1.02,
+            duration: 0.3,
+            ease: "power2.out"
+          });
+        },
+        onLeave: () => {
+          gsap.to(card, {
+            scale: 1,
+            duration: 0.3,
+            ease: "power2.out"
+          });
+        },
+        onEnterBack: () => {
+          gsap.to(card, {
+            scale: 1.02,
+            duration: 0.3,
+            ease: "power2.out"
+          });
+        },
+        onLeaveBack: () => {
+          gsap.to(card, {
+            scale: 1,
+            duration: 0.3,
+            ease: "power2.out"
+          });
+        }
+      });
+    });
+
+    return () => {
+      ScrollTrigger.getAll().forEach(trigger => trigger.kill());
+    };
+  }, [services, selected]);
+
+  const filtered = selected === 'All' 
+    ? services 
+    : selected === 'Premium Benefits'
+    ? services.filter(service => service.isPremiumOnly && membershipInfo?.membershipType === 'premium')
+    : services.filter(service => service.category === selected);
+
+  const hasServicesInCategory = filtered.length > 0;
+
+  const handleQuoteRequest = (service: Service) => {
+    setSelectedServiceForQuote(service);
+    setIsQuoteModalOpen(true);
+  };
+
+  const getServicePrice = (service: Service) => {
+    if (service.isPremiumOnly && service.labourCost === 0) {
+      return 'FREE';
+    }
+    if (service.isPremiumOnly && service.labourCost && membershipInfo?.membershipType === 'premium') {
+      return `£${service.labourCost}`;
+    }
+    return 'Request Quote';
+  };
+
+  const getServiceBadge = (service: Service) => {
+    if (service.isPremiumOnly) {
+      return <span className="premium-badge">PREMIUM ONLY</span>;
+    }
+    return null;
+  };
+
+  return (
+    <section className="services-section">
+      <div className="services-container">
+        <div className="services-header">
+          <h1>Our Services</h1>
+          <p>Professional automotive services tailored to your needs</p>
+          {membershipInfo?.membershipType === 'premium' && (
+            <div className="premium-member-banner">
+              <span className="premium-crown">👑</span>
+              <span>Premium Member - Enjoy exclusive benefits below!</span>
+            </div>
+          )}
+        </div>
+
+        <div className="services-categories">
+          {categories.map(category => (
+            <button
+              key={category}
+              className={`category-btn ${selected === category ? 'active' : ''} ${category === 'Premium Benefits' ? 'premium-category' : ''}`}
+              onClick={() => setSelected(category)}
+            >
+              {category === 'Premium Benefits' && <span className="premium-icon">👑</span>}
+              {category}
+            </button>
+          ))}
+        </div>
+
+        {hasServicesInCategory ? (
+          <div className="services-grid">
+            {filtered.map((service, i) => (
+              <div
+                key={service.id}
+                className={`service-card-modern${expanded === service.id ? ' expanded' : ''} ${service.isPremiumOnly ? 'premium-service' : ''}`}
+                ref={el => { cardsRef.current[i] = el; }}
+              >
+                <div className="service-card-header">
+                  <div className="service-card-badges">
+                    <span className="service-card-category">{service.category}</span>
+                    {getServiceBadge(service)}
+                  </div>
+                  <span className="service-card-title">{service.title}</span>
+                </div>
+                <div className="service-card-info">
+                  <span className="service-card-price">{getServicePrice(service)}</span>
+                  <span className="service-card-duration">{service.duration}</span>
+                </div>
+                <button
+                  className="service-card-toggle"
+                  onClick={() => setExpanded(expanded === service.id ? null : service.id)}
+                >
+                  {expanded === service.id ? 'Show less ▲' : 'Show details ▼'}
+                </button>
+                {expanded === service.id && (
+                  <div className="service-card-details">
+                    <p>{service.details}</p>
+                    {service.isPremiumOnly && membershipInfo?.membershipType !== 'premium' && (
+                      <div className="premium-upgrade-prompt">
+                        <p>🔒 This is a Premium member benefit</p>
+                        <button 
+                          className="upgrade-to-premium-btn"
+                          onClick={() => window.location.href = '/membership'}
+                        >
+                          Upgrade to Premium →
+                        </button>
+                      </div>
+                    )}
+                    {(!service.isPremiumOnly || membershipInfo?.membershipType === 'premium') && (
+                      <button 
+                        className="service-card-book-btn" 
+                        onClick={() => handleQuoteRequest(service)}
+                      >
+                        {service.isPremiumOnly ? 'Book Free Service →' : 'Request Quote →'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="coming-soon-container">
+            <div className="coming-soon-card">
+              <h3>Coming Soon</h3>
+              <p>We're working on adding {selected} services. Check back soon for updates!</p>
+              <div className="coming-soon-icon">🚗</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quote Request Modal */}
+      <QuoteRequestModal
+        isOpen={isQuoteModalOpen}
+        onClose={() => {
+          setIsQuoteModalOpen(false);
+          setSelectedServiceForQuote(null);
+        }}
+        selectedService={selectedServiceForQuote}
+      />
+    </section>
+  );
+};
+
+export default OurServicesPage;

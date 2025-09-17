@@ -1,0 +1,10 @@
+const SignupLogo = () => (
+  <div style={{ textAlign: 'center', marginBottom: 32 }}>
+    <img 
+      id="imager11" 
+      src="/nlogo.png" 
+      alt="Reliable Mechanics Logo"
+      style={{ height: '250px' }}
+    />
+  </div>
+);
