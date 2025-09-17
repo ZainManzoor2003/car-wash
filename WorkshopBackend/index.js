@@ -763,7 +763,7 @@ async function connectToMongoDB() {
 
     console.log('🔌 Connection options:', options);
 
-    await mongoose.connect(MONGODB_URI, options);
+    await mongoose.connect(MONGODB_URI);
 
     console.log('✅ Connected to MongoDB successfully!');
     console.log('✅ Connection state:', mongoose.connection.readyState);
