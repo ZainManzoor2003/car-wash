@@ -741,7 +741,7 @@ app.get('/health', (req, res) => {
 });
 
 // MongoDB Connection String
-const MONGODB_URI = "mongodb+srv://zainmanzoor2003_db_user:carwash123@cluster0.yjczpek.mongodb.net/"
+const MONGODB_URI = "mongodb+srv://ali:ali@cluster0.xkuanbt.mongodb.net/?retryWrites=true&w=majority"
 
 console.log('🔌 Attempting to connect to MongoDB...');
 console.log('🔌 Connection string:', MONGODB_URI.replace(/\/\/[^:]+:[^@]+@/, '//***:***@')); // Hide credentials in logs
@@ -818,6 +818,17 @@ async function connectToMongoDB() {
 
     } catch (setupError) {
       console.error('❌ Database setup failed:', setupError.message);
+    }
+
+    // Start server after successful connection and setup
+    if (process.env.NODE_ENV !== 'production') {
+      // Only start listening in development (not on Vercel)
+      app.listen(PORT, () => {
+        console.log(`🚀 Server is running on port ${PORT}`);
+        console.log(`🌐 Server URL: http://localhost:${PORT}`);
+      });
+    } else {
+      console.log(`🚀 Server is ready for Vercel deployment`);
     }
 
     return true;
