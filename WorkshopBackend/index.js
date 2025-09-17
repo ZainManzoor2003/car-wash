@@ -725,6 +725,7 @@ app.get('/', (req, res) => {
     status: 'OK',
     message: 'Workshop Backend is running!',
     timestamp: new Date().toISOString(),
+    readyState:mongoose.connection.readyState,
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
