@@ -139,9 +139,7 @@ const Navbar: React.FC = () => {
               <>
                 <li><Link to="/user-dashboard" onClick={() => setMenuOpen(false)}>Services</Link></li>
                 <li><Link to="/membership" onClick={() => setMenuOpen(false)}>Membership</Link></li>
-                {membershipType === 'premium' && (
                   <li><Link to="/referral" onClick={() => setMenuOpen(false)} >Referral</Link></li>
-                )}
                 <li><Link to="/dashboard/past-services" onClick={() => setMenuOpen(false)}>Past Services</Link></li>
                 <li><Link to="/dashboard/messages" onClick={() => setMenuOpen(false)}>Messages</Link></li>
                 {/* Contact and Privacy removed for logged-in users */}

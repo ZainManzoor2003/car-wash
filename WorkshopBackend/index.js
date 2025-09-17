@@ -1988,8 +1988,8 @@ app.put("/api/quote-requests/:id", async (req, res) => {
             quantity: 1
           }],
           mode: "payment",
-          success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-cancelled`,
+          success_url: `${process.env.FRONTEND_URL || "https://car-wash-client-seven.vercel.app"}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.FRONTEND_URL || "https://car-wash-client-seven.vercel.app"}/payment-cancelled`,
           metadata: {
             quoteRequestId: req.params.id,
             customerEmail: req.body.customerEmail || ""
@@ -2736,13 +2736,12 @@ app.post('/signup', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ name, email, password: hashedPassword, role: 'user' });
     await user.save();
-
     // Handle referral code if provided
     if (referralCode) {
       try {
         // Find the referrer by referral code
         const referrer = await User.findOne({ referralCode: referralCode });
-
+        
         if (referrer) {
           // Check if this email was already referred
           const existingReferral = await Referral.findOne({
@@ -2851,7 +2850,7 @@ app.post('/api/forgot-password', async (req, res) => {
     await resetTokenDoc.save();
 
     // Create reset link
-    const resetLink = `http://localhost:3000/reset-password?token=${resetToken}`;
+    const resetLink = `https://car-wash-client-seven.vercel.app/reset-password?token=${resetToken}`;
 
     // Send email with reset link
     const mailOptions = {
@@ -3129,7 +3128,7 @@ app.post('/api/reset-password', async (req, res) => {
                 </p>
                 
                 <div style="text-align: center;">
-                  <a href="http://localhost:3000/login" class="login-button">
+                  <a href="https://car-wash-client-seven.vercel.app/login" class="login-button">
                     Login Now
                   </a>
                 </div>
@@ -3344,7 +3343,7 @@ app.post('/api/contact', async (req, res) => {
                 <a href="mailto:${email}" class="btn">
                   Reply to ${name}
                 </a>
-                <a href="http://localhost:3000/dashboard" class="btn">
+                <a href="https://car-wash-client-seven.vercel.app/dashboard" class="btn">
                   Go to Dashboard
                 </a>
               </div>
@@ -7240,8 +7239,8 @@ app.post('/api/membership/upgrade', async (req, res) => {
         quantity: 1
       }],
       mode: 'subscription',
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/membership-payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/membership?cancelled=true`,
+      success_url: `${process.env.FRONTEND_URL || 'https://car-wash-client-seven.vercel.app'}/membership-payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'https://car-wash-client-seven.vercel.app'}/membership?cancelled=true`,
       metadata: {
         userEmail,
         membershipType,
