@@ -702,7 +702,8 @@ app.use(cors({
   origin: [
     'https://workshopfrontend-one.vercel.app',
     'http://localhost:3000',
-    'http://localhost:3002' // Keep localhost for development
+    'http://localhost:3002',
+    'https://car-wash-client-seven.vercel.app' // Keep localhost for development
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
