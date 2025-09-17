@@ -820,17 +820,6 @@ async function connectToMongoDB() {
       console.error('❌ Database setup failed:', setupError.message);
     }
 
-    // Start server after successful connection and setup
-    if (process.env.NODE_ENV !== 'production') {
-      // Only start listening in development (not on Vercel)
-      app.listen(PORT, () => {
-        console.log(`🚀 Server is running on port ${PORT}`);
-        console.log(`🌐 Server URL: http://localhost:${PORT}`);
-      });
-    } else {
-      console.log(`🚀 Server is ready for Vercel deployment`);
-    }
-
     return true;
 
   } catch (err) {
