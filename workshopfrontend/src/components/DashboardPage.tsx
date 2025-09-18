@@ -1194,20 +1194,28 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
   };
 
   // Handle edit booking
+
   const handleEditBooking = async () => {
     if (!selectedBookingForEdit) return;
     
     setEditLoading(true);
-    setManualLoading(true)
+    setManualLoading(true);
     try {
       console.log('🔄 Updating booking:', selectedBookingForEdit._id);
+      
+      // Build updated booking data
+      const updatedBookingData = {
+        ...selectedBookingForEdit
+      };
+      
+      console.log('📝 Sending updated booking data:', updatedBookingData);
       
       const response = await fetch(`${API_BASE_URL}/api/bookings/${selectedBookingForEdit._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(selectedBookingForEdit),
+        body: JSON.stringify(updatedBookingData),
       });
 
       if (response.ok) {
@@ -1225,7 +1233,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
       alert('Error updating booking');
     } finally {
       setEditLoading(false);
-      setManualLoading(false)
+      setManualLoading(false);
     }
   };
 
@@ -4002,6 +4010,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
               </div>
             </div>
 
+
+
+
+
             {/* Status */}
             <div style={{ marginBottom: 24 }}>
               <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Status</label>
@@ -4031,6 +4043,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
           </div>
         </div>
       )}
+
+
     </>
   );
 };

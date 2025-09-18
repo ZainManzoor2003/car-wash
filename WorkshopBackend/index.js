@@ -5446,10 +5446,50 @@ app.put('/api/bookings/:id', async (req, res) => {
     console.log('🔄 Updating booking:', id);
     console.log('📝 Update data:', updateData);
 
+    // Validate required fields
+    if (!updateData.car || !updateData.customer || !updateData.date || !updateData.time) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Build the complete booking object
+    const bookingUpdate = {
+      car: {
+        make: updateData.car.make,
+        model: updateData.car.model,
+        year: updateData.car.year,
+        registration: updateData.car.registration
+      },
+      customer: {
+        name: updateData.customer.name,
+        email: updateData.customer.email,
+        phone: updateData.customer.phone,
+        postcode: updateData.customer.postcode,
+        address: updateData.customer.address
+      },
+      service: updateData.service || null,
+      services: updateData.services || [],
+      parts: updateData.parts || [],
+      servicesFee: updateData.servicesFee || 0,
+      labourHours: updateData.labourHours || 0,
+      labourCost: updateData.labourCost || 0,
+      partsCost: updateData.partsCost || 0,
+      subtotal: updateData.subtotal || 0,
+      vat: updateData.vat || 0,
+      total: updateData.total || 0,
+      date: new Date(updateData.date),
+      time: updateData.time,
+      status: updateData.status || 'pending',
+      paymentStatus: updateData.paymentStatus || 'pending',
+      category: updateData.category || 'service',
+      // Preserve existing fields
+      createdAt: updateData.createdAt,
+      updatedAt: new Date()
+    };
+
     // Find and update the booking
     const updatedBooking = await Carbooking.findByIdAndUpdate(
       id,
-      updateData,
+      bookingUpdate,
       { new: true, runValidators: true }
     );
 
@@ -5458,6 +5498,13 @@ app.put('/api/bookings/:id', async (req, res) => {
     }
 
     console.log('✅ Booking updated successfully:', updatedBooking._id);
+    console.log('📊 Updated booking summary:', {
+      services: updatedBooking.services?.length || 0,
+      parts: updatedBooking.parts?.length || 0,
+      total: updatedBooking.total,
+      status: updatedBooking.status
+    });
+
     res.json({
       success: true,
       message: 'Booking updated successfully',
@@ -6627,69 +6674,69 @@ app.get('/api/test', (req, res) => {
 });
 
 // Debug endpoint to list all service images
-app.get('/api/debug/service-images', async (req, res) => {
-  try {
-    console.log('🔍 Debug: Listing all service images');
+// app.get('/api/debug/service-images', async (req, res) => {
+//   try {
+//     console.log('🔍 Debug: Listing all service images');
 
-    const images = await ServiceImage.find({}).sort({ uploadedAt: -1 });
+//     const images = await ServiceImage.find({}).sort({ uploadedAt: -1 });
 
-    // Group images by serviceId to show duplicates
-    const imagesByService = {};
-    images.forEach(img => {
-      if (!imagesByService[img.serviceId]) {
-        imagesByService[img.serviceId] = img.userId || 'NO_USER_ID';
-      }
-    });
+//     // Group images by serviceId to show duplicates
+//     const imagesByService = {};
+//     images.forEach(img => {
+//       if (!imagesByService[img.serviceId]) {
+//         imagesByService[img.serviceId] = img.userId || 'NO_USER_ID';
+//       }
+//     });
 
-    // Find potential duplicates (same imageUrl across different services)
-    const imageUrlMap = {};
-    images.forEach(img => {
-      if (!imageUrlMap[img.imageUrl]) {
-        imageUrlMap[img.imageUrl] = [];
-      }
-      imageUrlMap[img.imageUrl].push(img);
-    });
+//     // Find potential duplicates (same imageUrl across different services)
+//     const imageUrlMap = {};
+//     images.forEach(img => {
+//       if (!imageUrlMap[img.imageUrl]) {
+//         imageUrlMap[img.imageUrl] = [];
+//       }
+//       imageUrlMap[img.imageUrl].push(img);
+//     });
 
-    const duplicates = Object.entries(imageUrlMap).filter(([url, imgs]) => imgs.length > 1);
+//     const duplicates = Object.entries(imageUrlMap).filter(([url, imgs]) => imgs.length > 1);
 
-    // Get detailed information about each image's association
-    const detailedImages = await Promise.all(images.map(async (img) => {
-      const carbooking = await Carbooking.findById(img.serviceId);
-      return {
-        id: img._id,
-        serviceId: img.serviceId,
-        userId: img.userId,
-        imageUrl: img.imageUrl,
-        uploadedAt: img.uploadedAt,
-        carbooking: carbooking ? {
-          carRegistration: carbooking.car?.registration,
-          customerEmail: carbooking.customer?.email,
-          serviceLabel: carbooking.service?.label,
-          date: carbooking.date
-        } : null
-      };
-    }));
+//     // Get detailed information about each image's association
+//     const detailedImages = await Promise.all(images.map(async (img) => {
+//       const carbooking = await Carbooking.findById(img.serviceId);
+//       return {
+//         id: img._id,
+//         serviceId: img.serviceId,
+//         userId: img.userId,
+//         imageUrl: img.imageUrl,
+//         uploadedAt: img.uploadedAt,
+//         carbooking: carbooking ? {
+//           carRegistration: carbooking.car?.registration,
+//           customerEmail: carbooking.customer?.email,
+//           serviceLabel: carbooking.service?.label,
+//           date: carbooking.date
+//         } : null
+//       };
+//     }));
 
-    res.json({
-      totalImages: images.length,
-      imagesByService: imagesByService,
-      potentialDuplicates: duplicates.map(([url, imgs]) => ({
-        imageUrl: url,
-        services: imgs.map(img => ({
-          id: img._id,
-          serviceId: img.serviceId,
-          userId: img.userId,
-          uploadedAt: img.uploadedAt
-        }))
-      })),
-      allImages: detailedImages
-    });
+//     res.json({
+//       totalImages: images.length,
+//       imagesByService: imagesByService,
+//       potentialDuplicates: duplicates.map(([url, imgs]) => ({
+//         imageUrl: url,
+//         services: imgs.map(img => ({
+//           id: img._id,
+//           serviceId: img.serviceId,
+//           userId: img.userId,
+//           uploadedAt: img.uploadedAt
+//         }))
+//       })),
+//       allImages: detailedImages
+//     });
 
-  } catch (err) {
-    console.error('❌ Debug endpoint error:', err);
-    res.status(500).json({ error: 'Debug endpoint failed', details: err.message });
-  }
-});
+//   } catch (err) {
+//     console.error('❌ Debug endpoint error:', err);
+//     res.status(500).json({ error: 'Debug endpoint failed', details: err.message });
+//   }
+// });
 
 // Get user services with images by email
 app.get('/api/user-services-with-images/:email', async (req, res) => {

@@ -307,13 +307,11 @@ const ClientBookingModal: React.FC<ClientBookingModalProps> = ({ isOpen, onClose
                       value={formData.preferredTime}
                       onChange={handleInputChange}
                       required
-                      style={{ border: '2px solid red' }} // Temporary styling to make it visible
                     >
                       {timeSlots.map(time => (
                         <option key={time} value={time}>{time}</option>
                       ))}
                     </select>
-                    <small style={{ color: 'red', fontSize: '12px' }}>Time field should be visible here</small>
                   </div>
                 </div>
                 <div className="form-group">
@@ -335,7 +333,7 @@ const ClientBookingModal: React.FC<ClientBookingModalProps> = ({ isOpen, onClose
                   Cancel
                 </button>
                 <button type="submit" className="btn-submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Submitting...' : 'Proceed to Payment'}
+                  {isSubmitting ? 'Submitting...' : 'Request Quote'}
                 </button>
               </div>
             </form>
