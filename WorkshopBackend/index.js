@@ -19,7 +19,7 @@ require('dotenv').config();
 
 
 // Server configuration
-const PORT = process.env.PORT || 5001;
+const PORT = 5001;
 
 // DNS Configuration - Only set if needed for troubleshooting
 // const dns = require('dns');
@@ -772,8 +772,8 @@ async function connectToMongoDB() {
     console.log('✅ Database name:', mongoose.connection.name);
 
     // Test a simple operation
-    const collections = await mongoose.connection.db.listCollections().toArray();
-    console.log('✅ Available collections:', collections.map(c => c.name));
+    // const collections = await mongoose.connection.db.listCollections().toArray();
+    // console.log('✅ Available collections:', collections.map(c => c.name));
 
     // Now that MongoDB is connected, create indexes and seed data
     try {
@@ -857,276 +857,16 @@ async function connectToMongoDB() {
     console.log('6. Try connecting from a different network');
 
     // Start server anyway for development (without database)
-
-
-    app.post("/api/fluid-topups", async (req, res) => {
-      try {
-        const { userEmail, engineOil, coolant, screenwash, steeringFluid, notes, date } = req.body;
-
-        console.log(typeof(engineOil))
-
-        // Validate individual fluid limits (max 0.5L each)
-        if (engineOil > 0.5 || coolant > 0.5 || screenwash > 0.5 || steeringFluid > 0.5) {
-          return res.status(400).json({ error: "Each fluid cannot exceed 0.5L per visit" });
-        }
-
-        const fluidUsage = new FluidTopUpUsage({
-          userEmail,
-          engineOil: engineOil || 0,
-          coolant: coolant || 0,
-          screenwash: screenwash || 0,
-          steeringFluid: steeringFluid || 0,
-          notes: notes || "",
-          date
-        });
-
-        await fluidUsage.save();
-        console.log('fluid save',fluidUsage)
-        res.json({ success: true, message: "Fluid usage recorded successfully" });
-      } catch (error) {
-        console.error("Error saving fluid usage:", error);
-        res.status(500).json({ error: "Failed to save fluid usage" });
-      }
-    });
-
-    app.get("/api/fluid-topups", async (req, res) => {
-      try {
-        const { email, from } = req.query;
-        let query = {};
-
-        if (email) {
-          query.userEmail = email;
-        }
-
-        if (from) {
-          query.createdAt = { $gte: new Date(from) };
-        }
-
-        const fluidUsages = await FluidTopUpUsage.find(query).sort({ createdAt: -1 });
-        res.json(fluidUsages);
-      } catch (error) {
-        console.error("Error fetching fluid usages:", error);
-        res.status(500).json({ error: "Failed to fetch fluid usages" });
-      }
-    });
-
-    // ===== REFERRAL ENDPOINTS =====
-
-    // Generate referral code
-    app.post('/api/referral/generate-code', async (req, res) => {
-      try {
-        const { userEmail } = req.body;
-        const code = await generateReferralCode(userEmail);
-        res.json({ success: true, referralCode: code });
-      } catch (error) {
-        res.status(400).json({ error: error.message });
-      }
-    });
-
-    // Get referral stats
-    app.get('/api/referral/stats/:userEmail', async (req, res) => {
-      try {
-        const { userEmail } = req.params;
-        const user = await User.findOne({ email: userEmail });
-        if (!user) {
-          return res.status(404).json({ error: 'User not found' });
-        }
-
-        const referrals = await Referral.find({ referrerEmail: userEmail });
-        const totalReferrals = referrals.length;
-        const pendingReferrals = referrals.filter(r => r.status === 'pending').length;
-        const completedReferrals = referrals.filter(r => r.status === 'completed').length;
-
-        const stats = {
-          referralCode: user.referralCode,
-          totalReferrals: totalReferrals,
-          pendingReferrals: pendingReferrals,
-          completedReferrals: completedReferrals,
-          totalEarnings: user.totalEarnings,
-          referralBalance: user.referralBalance,
-          referrals: referrals.map(r => ({
-            referredName: r.referredName,
-            referredEmail: r.referredEmail,
-            status: r.status,
-            signupDate: r.signupDate,
-            firstBookingDate: r.firstBookingDate,
-            bonusAmount: r.bonusAmount,
-            bonusPaid: r.bonusPaid
-          }))
-        };
-
-        res.json({ stats });
-      } catch (error) {
-        console.error('❌ Error fetching referral stats:', error);
-        res.status(500).json({ error: error.message });
-      }
-    });
-
-    // Validate referral code
-    app.post('/api/referral/validate-code', async (req, res) => {
-      try {
-        const { referralCode } = req.body;
-        const user = await User.findOne({ referralCode: referralCode });
-        const valid = !!user;
-
-        res.json({
-          success: true,
-          valid: valid,
-          referrerName: valid ? user.name : null
-        });
-      } catch (error) {
-        res.status(500).json({ error: error.message });
-      }
-    });
-
-    // Use referral code during signup
-    app.post('/api/referral/use-code-signup', async (req, res) => {
-      try {
-        const { referralCode, referredEmail, referredName } = req.body;
-        const result = await createReferral(referralCode, referredEmail, referredName);
-        res.json(result);
-      } catch (error) {
-        res.status(400).json({ error: error.message });
-      }
-    });
-
-    // Award referral bonus (when booking is completed)
-    app.post('/api/referral/award-bonus', async (req, res) => {
-      try {
-        const { referredEmail } = req.body;
-        const result = await awardReferralBonus(referredEmail);
-        res.json(result);
-      } catch (error) {
-        res.status(500).json({ error: error.message });
-      }
-    });
-
-
-
-    // Test endpoint to simulate booking creation with referral bonus
-    app.post('/api/test/create-booking', async (req, res) => {
-      try {
-        const { customerEmail, customerName, carDetails, serviceDetails } = req.body;
-
-        console.log('🧪 Testing booking creation for:', customerEmail);
-
-        // Create test booking
-        const booking = new Carbooking({
-          customer: {
-            name: customerName || 'Test Customer',
-            email: customerEmail,
-            phone: '1234567890'
-          },
-          car: carDetails || {
-            make: 'Test',
-            model: 'Car',
-            year: '2020',
-            registration: 'TEST123'
-          },
-          service: serviceDetails || {
-            label: 'Test Service',
-            sub: 'Test Sub',
-            price: 100
-          },
-          total: 100,
-          status: 'pending'
-        });
-
-        await booking.save();
-        console.log('✅ Test booking created:', booking._id);
-
-        // Check if this is their first booking and award referral bonus
-        const user = await User.findOne({ email: customerEmail });
-        if (user && user.servicesBooked === 0) {
-          console.log('🎉 First booking - awarding referral bonus');
-          const result = await awardReferralBonus(customerEmail);
-          console.log('💰 Referral bonus awarded:', result);
-
-          // Update service count
-          user.servicesBooked += 1;
-          await user.save();
-        }
-
-        res.json({
-          success: true,
-          message: 'Test booking created and referral bonus processed',
-          booking: {
-            id: booking._id,
-            customer: booking.customer.email,
-            status: booking.status
-          }
-        });
-      } catch (error) {
-        console.error('❌ Error in test booking creation:', error);
-        res.status(500).json({ error: error.message });
-      }
-    });
-
-
-
-    // Fix pending referral bonuses for completed referrals that weren't paid
-    app.post('/api/referral/fix-pending-bonuses', async (req, res) => {
-      try {
-        const { userEmail } = req.body;
-        console.log('🔧 Fixing pending bonuses for:', userEmail);
-
-        // Find all completed referrals for this user that weren't paid
-        const referrals = await Referral.find({
-          referrerEmail: userEmail,
-          status: 'completed',
-          bonusPaid: false
-        });
-
-        if (referrals.length === 0) {
-          return res.json({
-            success: true,
-            message: 'No pending bonuses found',
-            fixedCount: 0
-          });
-        }
-
-        let totalAwarded = 0;
-
-        for (const referral of referrals) {
-          // Update referral to mark as paid
-          referral.bonusPaid = true;
-          referral.completedDate = new Date();
-          await referral.save();
-
-          // Update referrer's balance
-          const referrer = await User.findOne({ email: referral.referrerEmail });
-          if (referrer) {
-            referrer.referralBalance += referral.bonusAmount;
-            referrer.totalEarnings += referral.bonusAmount;
-            await referrer.save();
-            totalAwarded += referral.bonusAmount;
-            console.log('💰 Awarded $' + referral.bonusAmount + ' to:', referrer.email);
-          }
-        }
-
-        res.json({
-          success: true,
-          message: 'Fixed ' + referrals.length + ' pending bonuses',
-          fixedCount: referrals.length,
-          totalAwarded: totalAwarded
-        });
-      } catch (error) {
-        console.error('❌ Error fixing pending bonuses:', error);
-        res.status(500).json({ error: error.message });
-      }
-    });
-
-
-
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server is running on port ${PORT} (NO DATABASE)`);
-      console.log(`⚠️  Note: Database features will not work!`);
-    });
+   
 
     return false;
   }
 }
+
+ app.listen(PORT, () => {
+      console.log(`🚀 Server is running on port ${PORT} (NO DATABASE)`);
+      console.log(`⚠️  Note: Database features will not work!`);
+    });
 
 // Test connection function removed - not needed
 
@@ -1222,6 +962,8 @@ serviceImageSchema.index({ serviceId: 1, imageUrl: 1 }, { unique: true });
 serviceImageSchema.index({ userId: 1, serviceId: 1 });
 
 const ServiceImage = mongoose.model('ServiceImage', serviceImageSchema);
+
+
 
 // Function to clean up duplicate images
 async function cleanupDuplicateImages() {
@@ -4316,6 +4058,265 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
   res.json({ received: true });
 });
 
+
+ app.post("/api/fluid-topups", async (req, res) => {
+      try {
+        const { userEmail, engineOil, coolant, screenwash, steeringFluid, notes, date } = req.body;
+
+        console.log(typeof(engineOil))
+
+        // Validate individual fluid limits (max 0.5L each)
+        if (engineOil > 0.5 || coolant > 0.5 || screenwash > 0.5 || steeringFluid > 0.5) {
+          return res.status(400).json({ error: "Each fluid cannot exceed 0.5L per visit" });
+        }
+
+        const fluidUsage = new FluidTopUpUsage({
+          userEmail,
+          engineOil: engineOil || 0,
+          coolant: coolant || 0,
+          screenwash: screenwash || 0,
+          steeringFluid: steeringFluid || 0,
+          notes: notes || "",
+          date
+        });
+
+        await fluidUsage.save();
+        console.log('fluid save',fluidUsage)
+        res.json({ success: true, message: "Fluid usage recorded successfully" });
+      } catch (error) {
+        console.error("Error saving fluid usage:", error);
+        res.status(500).json({ error: "Failed to save fluid usage" });
+      }
+    });
+
+    app.get("/api/fluid-topups", async (req, res) => {
+      try {
+        const { email, from } = req.query;
+        let query = {};
+        console.log(email,from)
+
+        if (email) {
+          query.userEmail = email;
+        }
+
+        if (from) {
+          query.createdAt = { $gte: new Date(from) };
+        }
+
+        const fluidUsages = await FluidTopUpUsage.find(query).sort({ createdAt: -1 });
+        res.json(fluidUsages);
+      } catch (error) {
+        console.error("Error fetching fluid usages:", error);
+        res.status(500).json({ error: "Failed to fetch fluid usages" });
+      }
+    });
+
+    // ===== REFERRAL ENDPOINTS =====
+
+    // Generate referral code
+    app.post('/api/referral/generate-code', async (req, res) => {
+      try {
+        const { userEmail } = req.body;
+        const code = await generateReferralCode(userEmail);
+        res.json({ success: true, referralCode: code });
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    });
+
+    // Get referral stats
+    app.get('/api/referral/stats/:userEmail', async (req, res) => {
+      try {
+        const { userEmail } = req.params;
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        const referrals = await Referral.find({ referrerEmail: userEmail });
+        const totalReferrals = referrals.length;
+        const pendingReferrals = referrals.filter(r => r.status === 'pending').length;
+        const completedReferrals = referrals.filter(r => r.status === 'completed').length;
+
+        const stats = {
+          referralCode: user.referralCode,
+          totalReferrals: totalReferrals,
+          pendingReferrals: pendingReferrals,
+          completedReferrals: completedReferrals,
+          totalEarnings: user.totalEarnings,
+          referralBalance: user.referralBalance,
+          referrals: referrals.map(r => ({
+            referredName: r.referredName,
+            referredEmail: r.referredEmail,
+            status: r.status,
+            signupDate: r.signupDate,
+            firstBookingDate: r.firstBookingDate,
+            bonusAmount: r.bonusAmount,
+            bonusPaid: r.bonusPaid
+          }))
+        };
+
+        res.json({ stats });
+      } catch (error) {
+        console.error('❌ Error fetching referral stats:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // Validate referral code
+    app.post('/api/referral/validate-code', async (req, res) => {
+      try {
+        const { referralCode } = req.body;
+        const user = await User.findOne({ referralCode: referralCode });
+        const valid = !!user;
+
+        res.json({
+          success: true,
+          valid: valid,
+          referrerName: valid ? user.name : null
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // Use referral code during signup
+    app.post('/api/referral/use-code-signup', async (req, res) => {
+      try {
+        const { referralCode, referredEmail, referredName } = req.body;
+        const result = await createReferral(referralCode, referredEmail, referredName);
+        res.json(result);
+      } catch (error) {
+        res.status(400).json({ error: error.message });
+      }
+    });
+
+    // Award referral bonus (when booking is completed)
+    app.post('/api/referral/award-bonus', async (req, res) => {
+      try {
+        const { referredEmail } = req.body;
+        const result = await awardReferralBonus(referredEmail);
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+
+
+    // Test endpoint to simulate booking creation with referral bonus
+    app.post('/api/test/create-booking', async (req, res) => {
+      try {
+        const { customerEmail, customerName, carDetails, serviceDetails } = req.body;
+
+        console.log('🧪 Testing booking creation for:', customerEmail);
+
+        // Create test booking
+        const booking = new Carbooking({
+          customer: {
+            name: customerName || 'Test Customer',
+            email: customerEmail,
+            phone: '1234567890'
+          },
+          car: carDetails || {
+            make: 'Test',
+            model: 'Car',
+            year: '2020',
+            registration: 'TEST123'
+          },
+          service: serviceDetails || {
+            label: 'Test Service',
+            sub: 'Test Sub',
+            price: 100
+          },
+          total: 100,
+          status: 'pending'
+        });
+
+        await booking.save();
+        console.log('✅ Test booking created:', booking._id);
+
+        // Check if this is their first booking and award referral bonus
+        const user = await User.findOne({ email: customerEmail });
+        if (user && user.servicesBooked === 0) {
+          console.log('🎉 First booking - awarding referral bonus');
+          const result = await awardReferralBonus(customerEmail);
+          console.log('💰 Referral bonus awarded:', result);
+
+          // Update service count
+          user.servicesBooked += 1;
+          await user.save();
+        }
+
+        res.json({
+          success: true,
+          message: 'Test booking created and referral bonus processed',
+          booking: {
+            id: booking._id,
+            customer: booking.customer.email,
+            status: booking.status
+          }
+        });
+      } catch (error) {
+        console.error('❌ Error in test booking creation:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+
+
+    // Fix pending referral bonuses for completed referrals that weren't paid
+    app.post('/api/referral/fix-pending-bonuses', async (req, res) => {
+      try {
+        const { userEmail } = req.body;
+        console.log('🔧 Fixing pending bonuses for:', userEmail);
+
+        // Find all completed referrals for this user that weren't paid
+        const referrals = await Referral.find({
+          referrerEmail: userEmail,
+          status: 'completed',
+          bonusPaid: false
+        });
+
+        if (referrals.length === 0) {
+          return res.json({
+            success: true,
+            message: 'No pending bonuses found',
+            fixedCount: 0
+          });
+        }
+
+        let totalAwarded = 0;
+
+        for (const referral of referrals) {
+          // Update referral to mark as paid
+          referral.bonusPaid = true;
+          referral.completedDate = new Date();
+          await referral.save();
+
+          // Update referrer's balance
+          const referrer = await User.findOne({ email: referral.referrerEmail });
+          if (referrer) {
+            referrer.referralBalance += referral.bonusAmount;
+            referrer.totalEarnings += referral.bonusAmount;
+            await referrer.save();
+            totalAwarded += referral.bonusAmount;
+            console.log('💰 Awarded $' + referral.bonusAmount + ' to:', referrer.email);
+          }
+        }
+
+        res.json({
+          success: true,
+          message: 'Fixed ' + referrals.length + ' pending bonuses',
+          fixedCount: referrals.length,
+          totalAwarded: totalAwarded
+        });
+      } catch (error) {
+        console.error('❌ Error fixing pending bonuses:', error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
 // Cleanup endpoint to remove duplicate session-based bookings
 app.post('/api/cleanup-session-duplicates', async (req, res) => {
   try {
@@ -5433,6 +5434,41 @@ app.post('/api/test-create-booking', async (req, res) => {
     console.error('❌ Test endpoint error:', error);
     console.error('❌ Error stack:', error.stack);
     res.status(500).json({ error: 'Failed to create test booking', details: error.message });
+  }
+});
+
+// PUT /api/bookings/:id - Update an existing booking
+app.put('/api/bookings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    console.log('🔄 Updating booking:', id);
+    console.log('📝 Update data:', updateData);
+
+    // Find and update the booking
+    const updatedBooking = await Carbooking.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedBooking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    console.log('✅ Booking updated successfully:', updatedBooking._id);
+    res.json({
+      success: true,
+      message: 'Booking updated successfully',
+      booking: updatedBooking
+    });
+  } catch (error) {
+    console.error('❌ Error updating booking:', error);
+    res.status(500).json({ 
+      error: 'Failed to update booking', 
+      details: error.message 
+    });
   }
 });
 

@@ -152,6 +152,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
   const [manualMembership, setManualMembership] = useState<'premium' | 'free' | null>(null);
   const [manualLoading, setManualLoading] = useState(false);
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [refreshingBookings, setRefreshingBookings] = useState(false);
+  
+  // Edit booking state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedBookingForEdit, setSelectedBookingForEdit] = useState<any>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  
   // Add time picker state for manual booking
   const [manualTime, setManualTime] = useState('09:00');
   const [manualDate, setManualDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -295,26 +302,27 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
     }, 0);
   };
 
-  // Calculate labour cost per hour (average of selected services)
-  const getLabourCostPerHour = () => {
-    if (selectedServices.length === 0) return 10; // default £10/hour if no services selected
+  // Calculate total labour cost from selected services
+  const getTotalLabourCost = () => {
+    if (selectedServices.length === 0) return 0; // no labour cost if no services selected
     
-    const totalCost = selectedServices.reduce((total, serviceIndex) => {
-      let cost = 10; // default
+    return selectedServices.reduce((total, serviceIndex) => {
+      let labourCost = 0;
+      let labourHours = 0;
       
       if (serviceIndex < serviceOptions.length) {
-        const candidate = serviceOptions[serviceIndex]?.labourCost;
-        if (typeof candidate === 'number' && candidate > 0) cost = candidate;
+        const service = serviceOptions[serviceIndex];
+        labourCost = service?.labourCost || 0;
+        labourHours = service?.labourHours || 0;
       } else {
         const customIndex = serviceIndex - serviceOptions.length;
-        const candidate = customServices[customIndex]?.labourCost;
-        if (typeof candidate === 'number' && candidate > 0) cost = candidate;
+        const customService = customServices[customIndex];
+        labourCost = customService?.labourCost || 0;
+        labourHours = customService?.labourHours || 0;
       }
       
-      return total + cost;
+      return total + (labourCost * labourHours);
     }, 0);
-    
-    return totalCost / selectedServices.length; // average cost per hour
   };
 
   // Calculate total service price for multiple services
@@ -338,9 +346,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
   };
 
   const labourHours = getLabourHours();
-  const labourCostPerHour = getLabourCostPerHour();
-  const labourCost = labourHours * labourCostPerHour;
-  console.log('🔧 Labour calculation - hours:', labourHours, 'cost per hour:', labourCostPerHour, 'total cost:', labourCost);
+  const labourCost = getTotalLabourCost();
+  console.log('🔧 Labour calculation - hours:', labourHours, 'total labour cost:', labourCost);
   
   // Compute service discount percent (manual)
   const manualServiceDiscountPercent = (() => {
@@ -367,7 +374,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
   const partsCost = parts.reduce((sum, p) => sum + (parseFloat(p.price || 0) * (p.qty || 1)), 0);
   const servicePrice = getServicePrice();
   const subtotal = Math.max(0, labourCost - manualLabourDiscountAmount) + partsCost + Math.max(0, servicePrice - manualServiceDiscountAmount);
-  const vat = Math.round(subtotal * 0.2 * 100) / 100; // Round to nearest penny
+  // VAT is 0 when no services are selected
+  const vat = selectedServices.length === 0 ? 0 : Math.round(subtotal * 0.2 * 100) / 100;
   const total = subtotal + vat;
 
   // Category mapping system for admin dashboard
@@ -485,7 +493,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
       vat,
       total,
       date: manualDate,
-      time: selectedTime,
+      time: manualTime,
       category,
     };
     try {
@@ -528,8 +536,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
         }
       }
       
-      // Refresh bookings
-      await refreshBookings();
+      // Refresh bookings with a small delay to ensure backend processing is complete
       setShowManual(false);
       // Reset manual form
       setManualCar({ make: '', model: '', year: '', registration: '' });
@@ -574,26 +581,27 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
     }, 0);
   };
 
-  // Calculate lookup labour cost per hour (average of selected services)
-  const getLookupLabourCostPerHour = () => {
-    if (lookupSelectedServices.length === 0) return 10; // default £10/hour if no services selected
+  // Calculate total lookup labour cost from selected services
+  const getLookupTotalLabourCost = () => {
+    if (lookupSelectedServices.length === 0) return 0; // no labour cost if no services selected
     
-    const totalCost = lookupSelectedServices.reduce((total, serviceIndex) => {
-      let cost = 10; // default
+    return lookupSelectedServices.reduce((total, serviceIndex) => {
+      let labourCost = 0;
+      let labourHours = 0;
       
       if (serviceIndex < serviceOptions.length) {
-        const candidate = serviceOptions[serviceIndex]?.labourCost;
-        if (typeof candidate === 'number' && candidate > 0) cost = candidate;
+        const service = serviceOptions[serviceIndex];
+        labourCost = service?.labourCost || 0;
+        labourHours = service?.labourHours || 0;
       } else {
         const customIndex = serviceIndex - serviceOptions.length;
-        const candidate = lookupCustomServices[customIndex]?.labourCost;
-        if (typeof candidate === 'number' && candidate > 0) cost = candidate;
+        const customService = lookupCustomServices[customIndex];
+        labourCost = customService?.labourCost || 0;
+        labourHours = customService?.labourHours || 0;
       }
       
-      return total + cost;
+      return total + (labourCost * labourHours);
     }, 0);
-    
-    return totalCost / lookupSelectedServices.length; // average cost per hour
   };
 
   // Calculate total lookup service price for multiple services
@@ -780,8 +788,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
         }
       }
       
-      // Refresh bookings
-      await refreshBookings();
+      // Refresh bookings with a small delay to ensure backend processing is complete
       setShowLookupBookingModal(false);
       // Reset lookup form
       setLookupCar(null);
@@ -1180,9 +1187,52 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
   };
 
   // Refresh bookings from server
+  // Handle booking click to open edit modal
+  const handleBookingClick = (booking: any) => {
+    setSelectedBookingForEdit(booking);
+    setShowEditModal(true);
+  };
+
+  // Handle edit booking
+  const handleEditBooking = async () => {
+    if (!selectedBookingForEdit) return;
+    
+    setEditLoading(true);
+    setManualLoading(true)
+    try {
+      console.log('🔄 Updating booking:', selectedBookingForEdit._id);
+      
+      const response = await fetch(`${API_BASE_URL}/api/bookings/${selectedBookingForEdit._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(selectedBookingForEdit),
+      });
+
+      if (response.ok) {
+        console.log('✅ Booking updated successfully');
+        // Refresh bookings
+        await refreshBookings();
+        setShowEditModal(false);
+        setSelectedBookingForEdit(null);
+      } else {
+        console.error('❌ Failed to update booking');
+        alert('Failed to update booking');
+      }
+    } catch (error) {
+      console.error('❌ Error updating booking:', error);
+      alert('Error updating booking');
+    } finally {
+      setEditLoading(false);
+      setManualLoading(false)
+    }
+  };
+
   const refreshBookings = async () => {
     try {
       console.log('🔄 Refreshing bookings...');
+      setRefreshingBookings(true);
       
       // Fetch regular bookings
       const res = await fetch(`${API_BASE_URL}/api/bookings`);
@@ -1212,9 +1262,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
       // Combine both types of bookings
       const allBookings = [...regularBookings, ...seasonalBookings];
       setBookings(allBookings);
+      console.log('✅ Bookings refreshed successfully:', allBookings.length, 'bookings loaded');
       
     } catch (error) {
       console.error('❌ Failed to refresh bookings:', error);
+    } finally {
+      setRefreshingBookings(false);
     }
   };
 
@@ -1416,8 +1469,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
     }
   };
 
-  // Fetch all bookings on mount
-  useEffect(() => {
+  const fetchBookings=()=>{
     console.log('🔍 DashboardPage useEffect - fetching bookings from:', `${API_BASE_URL}/api/bookings`);
     setBookingsLoading(true);
     fetch(`${API_BASE_URL}/api/bookings`)
@@ -1465,6 +1517,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
         console.log('📅 Setting bookingsLoading to false');
         setBookingsLoading(false);
       });
+  }
+
+  useEffect(()=>{
+    if(manualLoading==false)
+    {
+      fetchBookings()
+    }
+  },[manualLoading])
+  // Fetch all bookings on mount
+  useEffect(() => {
+    fetchBookings()
   }, []);
 
             // Fetch unread messages count
@@ -1489,8 +1552,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
 
   // Calculate lookup totals using multiple services
   const lookupLabourHours = getLookupLabourHours();
-  const lookupLabourCostPerHour = getLookupLabourCostPerHour();
-  const lookupLabourCost = lookupLabourHours * lookupLabourCostPerHour;
+  const lookupLabourCost = getLookupTotalLabourCost();
   const lookupPartsCost = lookupParts.reduce((sum, p) => sum + (parseFloat(p.price || 0) * (p.qty || 1)), 0);
   const lookupServicePrice = getLookupServicePrice();
   const lookupServiceDiscountPercent = (() => {
@@ -1509,7 +1571,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
     ? Math.round((lookupLabourCost * 0.05) * 100) / 100
     : 0;
   const lookupSubtotal = Math.max(0, lookupLabourCost - lookupLabourDiscountAmount) + lookupPartsCost + Math.max(0, lookupServicePrice - lookupServiceDiscountAmount);
-  const lookupVat = Math.round(lookupSubtotal * 0.2 * 100) / 100; // Round to nearest penny
+  // VAT is 0 when no services are selected
+  const lookupVat = lookupSelectedServices.length === 0 ? 0 : Math.round(lookupSubtotal * 0.2 * 100) / 100;
   const lookupTotal = lookupSubtotal + lookupVat;
 
   useEffect(() => {
@@ -1794,6 +1857,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
             <div style={{ marginTop: 32, marginBottom: 8 }}>
               <div style={{ fontWeight: 700, fontSize: '2.5rem', color: '#fff', marginBottom: 8 }}>Admin Dashboard</div>
               <div style={{ color: '#bdbdbd', fontSize: '1.15rem', marginBottom: 8 }}>Manage bookings, parts, and system administration.</div>
+              {refreshingBookings && (
+                <div style={{ color: '#ffd600', fontSize: '0.9rem', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 16, height: 16, border: '2px solid #ffd600', borderTop: '2px solid transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                  Refreshing bookings...
+                </div>
+              )}
               <div style={{ width: 64, height: 4, background: '#ffd600', borderRadius: 2, marginBottom: 32 }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32, flexWrap: 'wrap' }} className="dashboard-controls">
@@ -1883,7 +1952,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
                         <td style={{ padding: cellPad, width: 80 }}>
                           {/* Tyres column: show bookings that include tyres services */}
                           {bookingsForDate.filter((b: Booking) => b.time === slot && getBookingCategories(b).includes('tyres')).map((b: Booking, i: number) => (
-                            <div key={i} className="dashboard-booking-card" style={{
+                            <div key={i} className="dashboard-booking-card" 
+                              onClick={() => handleBookingClick(b)}
+                              style={{
                               background: '#ff6b6b',
                               color: '#fff',
                               borderRadius: 10,
@@ -1899,7 +1970,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
                               maxWidth: 260,
                               width: '100%',
                               marginLeft: '-70px',
-                              marginRight: '170px'
+                              marginRight: '170px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
                             }}>
                               <span style={{ fontWeight: 700, fontSize: '1.08rem', marginBottom: 2 }}>{b.car?.registration || 'N/A'}</span>
                               <span style={{ fontWeight: 500, fontSize: '1.01rem' }}>£{typeof b.total === 'number' ? b.total.toFixed(2) : (b.total ? Number(b.total).toFixed(2) : '0.00')}</span>
@@ -1921,7 +1994,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
                           {bookingsForDate.filter((b: Booking) => 
                             b.time === slot && (getBookingCategories(b).includes('service') || b.isSeasonalCheck)
                           ).map((b: Booking, i: number) => (
-                            <div key={i} className="dashboard-booking-card" style={{
+                            <div key={i} className="dashboard-booking-card" 
+                              onClick={() => handleBookingClick(b)}
+                              style={{
                               background: b.isSeasonalCheck ? '#FFA500' : '#ffd600',
                               color: '#111',
                               borderRadius: 10,
@@ -1937,7 +2012,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
                               maxWidth: 260,
                               width: '100%',
                               marginLeft: '-50px',
-                              marginRight: '170px'
+                              marginRight: '170px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
                             }}>
                               <span style={{ fontWeight: 700, fontSize: '1.08rem', marginBottom: 2 }}>{b.car?.registration || 'N/A'}</span>
                               <span style={{ fontWeight: 500, fontSize: '1.01rem' }}>{b.isSeasonalCheck ? 'FREE' : `£${typeof b.total === 'number' ? b.total.toFixed(2) : (b.total ? Number(b.total).toFixed(2) : '0.00')}`}</span>
@@ -1957,7 +2034,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
                         <td style={{ padding: cellPad, width: 80 }}>
                           {/* Mechanical column: show bookings that include mechanical services */}
                           {bookingsForDate.filter((b: Booking) => b.time === slot && getBookingCategories(b).includes('mechanical')).map((b: Booking, i: number) => (
-                            <div key={i} className="dashboard-booking-card" style={{
+                            <div key={i} className="dashboard-booking-card" 
+                              onClick={() => handleBookingClick(b)}
+                              style={{
                               background: '#4ecdc4',
                               color: '#111',
                               borderRadius: 10,
@@ -1973,7 +2052,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
                               maxWidth: 260,
                               width: '100%',
                               marginLeft: '-50px',
-                              marginRight: '170px'
+                              marginRight: '170px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
                             }}>
                               <span style={{ fontWeight: 700, fontSize: '1.08rem', marginBottom: 2 }}>{b.car?.registration || 'N/A'}</span>
                               <span style={{ fontWeight: 500, fontSize: '1.01rem' }}>£{typeof b.total === 'number' ? b.total.toFixed(2) : (b.total ? Number(b.total).toFixed(2) : '0.00')}</span>
@@ -3436,8 +3517,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
             <div className="modal-quote-summary">
               <div style={{ fontWeight: 600, marginBottom: 12 }}>Quote Summary</div>
               <div className="modal-quote-row">
-                <span>Labour ({lookupLabourHours}h @ £{lookupLabourCostPerHour}/h):</span>
-                <span>£{lookupLabourCost}</span>
+                <span>Labour</span>
+                <span>£{lookupLabourCost.toFixed(2)}</span>
               </div>
               <div className="modal-quote-row">
                 <span>Parts Cost:</span>
@@ -3744,6 +3825,209 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Booking Modal */}
+      {showEditModal && selectedBookingForEdit && (
+        <div className="dashboard-modal-bg">
+          <div className="dashboard-modal dashboard-modal-wide">
+            <button className="dashboard-modal-close" onClick={() => setShowEditModal(false)}>&times;</button>
+            <h2>Edit Booking</h2>
+            
+            {/* Car Information */}
+            <div className="modal-section-title">Vehicle Information</div>
+            <div style={{ background: '#232323', borderRadius: 8, padding: 16, marginBottom: 24 }}>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Make *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={selectedBookingForEdit.car?.make || ''} 
+                    onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                      ...prev, 
+                      car: { ...prev.car, make: e.target.value } 
+                    }))}  
+                    style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Model *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={selectedBookingForEdit.car?.model || ''} 
+                    onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                      ...prev, 
+                      car: { ...prev.car, model: e.target.value } 
+                    }))}  
+                    style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Year *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={selectedBookingForEdit.car?.year || ''} 
+                    onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                      ...prev, 
+                      car: { ...prev.car, year: e.target.value } 
+                    }))}  
+                    style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Registration *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={selectedBookingForEdit.car?.registration || ''} 
+                    onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                      ...prev, 
+                      car: { ...prev.car, registration: e.target.value } 
+                    }))}  
+                    style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Information */}
+            <div className="modal-section-title">Customer Information</div>
+            <div style={{ background: '#232323', borderRadius: 8, padding: 16, marginBottom: 24 }}>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Name *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={selectedBookingForEdit.customer?.name || ''} 
+                    onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                      ...prev, 
+                      customer: { ...prev.customer, name: e.target.value } 
+                    }))}  
+                    style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Email *</label>
+                  <input 
+                    type="email" 
+                    required
+                    value={selectedBookingForEdit.customer?.email || ''} 
+                    onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                      ...prev, 
+                      customer: { ...prev.customer, email: e.target.value } 
+                    }))}  
+                    style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Phone *</label>
+                  <input 
+                    type="tel" 
+                    required
+                    value={selectedBookingForEdit.customer?.phone || ''} 
+                    onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                      ...prev, 
+                      customer: { ...prev.customer, phone: e.target.value } 
+                    }))}  
+                    style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Postcode *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={selectedBookingForEdit.customer?.postcode || ''} 
+                    onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                      ...prev, 
+                      customer: { ...prev.customer, postcode: e.target.value } 
+                    }))}  
+                    style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Address *</label>
+                <input 
+                  type="text" 
+                  required
+                  value={selectedBookingForEdit.customer?.address || ''} 
+                  onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                    ...prev, 
+                    customer: { ...prev.customer, address: e.target.value } 
+                  }))}  
+                  style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                />
+              </div>
+            </div>
+
+            {/* Date and Time */}
+            <div className="modal-section-title">Appointment Details</div>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Date *</label>
+                <input 
+                  type="date" 
+                  required
+                  value={dayjs(selectedBookingForEdit.date).format('YYYY-MM-DD')} 
+                  onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                    ...prev, 
+                    date: e.target.value 
+                  }))}  
+                  style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Time *</label>
+                <input 
+                  type="time" 
+                  required
+                  value={selectedBookingForEdit.time || ''} 
+                  onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                    ...prev, 
+                    time: e.target.value 
+                  }))}  
+                  style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }} 
+                />
+              </div>
+            </div>
+
+            {/* Status */}
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ fontWeight: 500, marginBottom: 4, display: 'block' }}>Status</label>
+              <select 
+                value={selectedBookingForEdit.status || 'pending'} 
+                onChange={e => setSelectedBookingForEdit((prev: any) => ({ 
+                  ...prev, 
+                  status: e.target.value 
+                }))}  
+                style={{ width: '100%', background: '#111', color: '#eaeaea', border: '1.5px solid #232323', borderRadius: 8, padding: '10px 14px', fontSize: '1rem', marginBottom: 8 }}
+              >
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="modal-btn-row">
+              <button className="modal-btn-outline modal-btn-block" onClick={() => setShowEditModal(false)}>Cancel</button>
+              <button className="modal-btn-yellow modal-btn-block" onClick={handleEditBooking} disabled={editLoading}>
+                {editLoading ? 'Updating...' : 'Update Booking'}
+              </button>
+            </div>
           </div>
         </div>
       )}
