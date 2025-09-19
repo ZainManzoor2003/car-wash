@@ -2595,7 +2595,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
             
             <div className="modal-quote-summary">
                 <div style={{ fontWeight: 600, marginBottom: 8 }}>Quote Summary</div>
-                <div className="modal-quote-row"><span>Labour ({labourHours} hours)</span><span>£{typeof labourCost === 'number' ? labourCost.toFixed(2) : (labourCost ? Number(labourCost).toFixed(2) : '0.00')}</span></div>
+                <div className="modal-quote-row"><span>Labour</span><span>£{typeof labourCost === 'number' ? labourCost.toFixed(2) : (labourCost ? Number(labourCost).toFixed(2) : '0.00')}</span></div>
                 <div className="modal-quote-row"><span>Service</span><span>£{typeof servicePrice === 'number' ? servicePrice.toFixed(2) : (servicePrice ? Number(servicePrice).toFixed(2) : '0.00')}</span></div>
                 {manualMembership && manualServiceDiscountAmount > 0 && (
                   <div className="modal-quote-row"><span>Membership Discount ({manualServiceDiscountPercent.toFixed(0)}% on service)</span><span>-£{manualServiceDiscountAmount.toFixed(2)}</span></div>
