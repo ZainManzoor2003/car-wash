@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 
-import Home from './components/Home';
+import ProtectedHome from './components/ProtectedHome';
 import OurServicesPage from './components/OurServicesPage';
 import AboutPage from './components/AboutPage';
 import ContactPage from './components/ContactPage';
@@ -39,7 +39,7 @@ const App: React.FC = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<ProtectedHome />} />
         <Route path="/our-services" element={<OurServicesPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import ClientBookingModal from './ClientBookingModal';
@@ -63,6 +64,7 @@ const fallbackServiceData = [
 const categories = ['All', 'Maintenance', 'Repairs', 'Diagnostics', 'Inspection'];
 
 const Services: React.FC = () => {
+  const navigate = useNavigate();
   const [selected, setSelected] = useState('All');
   const [expanded, setExpanded] = useState<number | null>(null);
   const [serviceData, setServiceData] = useState<typeof fallbackServiceData>(fallbackServiceData);
@@ -124,8 +126,17 @@ const Services: React.FC = () => {
   const filtered = selected === 'All' ? serviceData : serviceData.filter(s => s.category === selected);
 
   const handleClientBooking = (service: typeof fallbackServiceData[0]) => {
-    setSelectedServiceForBooking(service);
-    setIsClientBookingOpen(true);
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    
+    // Check if user is logged in
+    if (token && role) {
+      // User is logged in, redirect to services page (user dashboard)
+      navigate('/user-dashboard');
+    } else {
+      // User is not logged in, redirect to login page
+      navigate('/login');
+    }
   };
 
   // Animation refs

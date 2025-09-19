@@ -58,6 +58,7 @@ interface Booking {
   };
   isSeasonalCheck?: boolean;
   total?: number;
+  status?: string;
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
@@ -1423,7 +1424,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ initialTab }) => {
     }
     
     const dashboardDateStr = dashboardDate.format('YYYY-MM-DD');
-    return bookingDateStr === dashboardDateStr;
+    const isDateMatch = bookingDateStr === dashboardDateStr;
+    
+    // Exclude canceled bookings
+    const isNotCanceled = b.status !== 'cancelled' && b.status !== 'canceled';
+    
+    return isDateMatch && isNotCanceled;
   }).reduce((unique: Booking[], booking: Booking) => {
     // Use registration + time + isSeasonalCheck as a unique key
     const key = `${booking.car?.registration}-${booking.time}-${booking.isSeasonalCheck ? 'seasonal' : 'regular'}`;

@@ -121,7 +121,7 @@ const Navbar: React.FC = () => {
         )}
         <div className={`new-navbar-menu${menuOpen ? ' open' : ''}`}>
           <ul className="new-nav-menu">
-            <li><Link to="/" onClick={() => setMenuOpen(false)}>Home</Link></li>
+            {role !== 'admin' && <li><Link to="/" onClick={() => setMenuOpen(false)}>Home</Link></li>}
             {role === 'admin' ? (
               // Admin navigation
               <>
