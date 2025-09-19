@@ -135,40 +135,55 @@ const Services: React.FC = () => {
   const tabsRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
 
+  // Reset cardsRef when filtered array changes
   useEffect(() => {
-    if (sectionRef.current) {
-      gsap.fromTo(
-        [titleRef.current, descRef.current, tabsRef.current],
-        { opacity: 0, y: 40 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.7,
-          stagger: 0.15,
-          ease: 'power3.out',
-          scrollTrigger: {
-            trigger: sectionRef.current,
-            start: 'top 80%',
-          },
+    cardsRef.current = new Array(filtered.length).fill(null);
+  }, [filtered.length]);
+
+  useEffect(() => {
+    try {
+      if (sectionRef.current) {
+        const headerElements = [titleRef.current, descRef.current, tabsRef.current].filter(Boolean);
+        if (headerElements.length > 0) {
+          gsap.fromTo(
+            headerElements,
+            { opacity: 0, y: 40 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.7,
+              stagger: 0.15,
+              ease: 'power3.out',
+              scrollTrigger: {
+                trigger: sectionRef.current,
+                start: 'top 80%',
+              },
+            }
+          );
         }
-      );
-    }
-    if (cardsRef.current) {
-      gsap.fromTo(
-        cardsRef.current,
-        { opacity: 0, y: 40 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.7,
-          stagger: 0.13,
-          ease: 'power3.out',
-          scrollTrigger: {
-            trigger: sectionRef.current,
-            start: 'top 75%',
-          },
-        }
-      );
+      }
+      
+      // Filter out null values and only animate existing elements
+      const validCards = cardsRef.current.filter(Boolean);
+      if (validCards.length > 0 && sectionRef.current) {
+        gsap.fromTo(
+          validCards,
+          { opacity: 0, y: 40 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.7,
+            stagger: 0.13,
+            ease: 'power3.out',
+            scrollTrigger: {
+              trigger: sectionRef.current,
+              start: 'top 75%',
+            },
+          }
+        );
+      }
+    } catch (error) {
+      console.warn('GSAP animation error:', error);
     }
   }, [filtered.length]);
 
@@ -238,7 +253,6 @@ const Services: React.FC = () => {
             <div className="coming-soon-card">
               <h3>Coming Soon</h3>
               <p>We're working on adding {selected} services. Check back soon for updates!</p>
-              <div className="coming-soon-icon">🚗</div>
             </div>
           </div>
         )}
