@@ -135,7 +135,7 @@ const ReferralDashboard: React.FC<ReferralDashboardProps> = ({ userEmail }) => {
           maxWidth: '600px',
           margin: '0 auto'
         }}>
-          Share your unique code with friends and earn <strong style={{ color: '#ffd600' }}>$5</strong> 
+          Share your unique code with friends and earn <strong style={{ color: '#ffd600' }}>£5</strong> 
           {' '}when they create their first booking!
         </p>
       </div>
@@ -328,7 +328,7 @@ const ReferralDashboard: React.FC<ReferralDashboardProps> = ({ userEmail }) => {
                 color: '#4CAF50',
                 marginBottom: '10px'
               }}>
-                ${stats.totalEarnings}
+                £{stats.totalEarnings}
               </div>
               <div style={{ color: '#ccc', fontSize: '1rem' }}>
                 Total Earned
@@ -395,7 +395,7 @@ const ReferralDashboard: React.FC<ReferralDashboardProps> = ({ userEmail }) => {
                         color: referral.bonusPaid ? '#4CAF50' : '#ccc',
                         fontSize: '0.9rem'
                       }}>
-                        ${referral.bonusAmount} {referral.bonusPaid ? 'Earned' : 'Pending'}
+                        £{referral.bonusAmount} {referral.bonusPaid ? 'Earned' : 'Pending'}
                       </div>
                     </div>
                   </div>

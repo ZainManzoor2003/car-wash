@@ -160,16 +160,16 @@ async function awardReferralBonus(referredEmail) {
 const sendBookingConfirmationEmail = async (userEmail, userName, carDetails, serviceDetails, bookingDate, bookingTime, totalAmount) => {
   try {
     const mailOptions = {
-      from: 'aryanarshad5413@gmail.com',
+      from: 'j2mechanicslondon@gmail.com',
       to: userEmail,
-      subject: 'Booking Confirmation - Reliable Mechanics',
+      subject: 'Booking Confirmation - J2 Mechanics',
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Booking Confirmation - Reliable Mechanics</title>
+          <title>Booking Confirmation - J2 Mechanics</title>
           <style>
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -199,18 +199,20 @@ const sendBookingConfirmationEmail = async (userEmail, userName, carDetails, ser
             .logo { 
               width: 120px; 
               height: 120px; 
-              background: linear-gradient(135deg, #ffd700, #ffed4e); 
               border-radius: 50%; 
               display: inline-block; 
               position: relative; 
+              background-color: #000000;
               border: 4px solid #000000;
               box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
               text-align: center;
-              line-height: 120px;
-              font-size: 48px;
-              font-weight: 900;
-              color: #000000;
-              font-family: 'Arial Black', sans-serif;
+              overflow: hidden;
+            }
+            .logo img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              border-radius: 50%;
             }
             .header h1 { 
               color: #000000; 
@@ -375,10 +377,12 @@ const sendBookingConfirmationEmail = async (userEmail, userName, carDetails, ser
           <div class="container">
             <div class="header">
               <div class="logo-container">
-                <div class="logo">J²</div>
+                <div class="logo">
+                  <img src="https://res.cloudinary.com/dftnqqcjz/image/upload/v1758601436/serviceImages/vvq5ybkap5lqkmmuewsj.png" alt="J2 Mechanics Logo" />
+                </div>
               </div>
-              <h1>RELIABLE MECHANICS</h1>
-              <p>HONEST & RELIABLE</p>
+              <h1>J2 MECHANICS</h1>
+              <p>HONEST & J2</p>
               <p>DRIVEN BY INTEGRITY, POWERED BY COMPASSION</p>
             </div>
             <div class="content">
@@ -451,10 +455,10 @@ const sendBookingConfirmationEmail = async (userEmail, userName, carDetails, ser
               </div>
             </div>
             <div class="footer">
-              <p>Thank you for choosing <span class="highlight">Reliable Mechanics</span></p>
+              <p>Thank you for choosing <span class="highlight">J2 Mechanics</span></p>
               <p>For any questions or changes to your booking, please contact us</p>
               <div class="contact-info">
-                <p><strong>Email:</strong> <a href="mailto:aryanarshad5413@gmail.com" class="email">aryanarshad5413@gmail.com</a></p>
+                <p><strong>Email:</strong> <a href="mailto:j2mechanicslondon@gmail.com" class="email">j2mechanicslondon@gmail.com</a></p>
                 <p><strong>Service:</strong> Professional automotive care you can trust</p>
               </div>
             </div>
@@ -477,16 +481,16 @@ const sendBookingConfirmationEmail = async (userEmail, userName, carDetails, ser
 const sendQuoteEmail = async (customerEmail, customerName, serviceTitle, quotedPrice, quotedDetails, paymentLink) => {
   try {
     const mailOptions = {
-      from: 'aryanarshad5413@gmail.com',
+      from: 'j2mechanicslondon@gmail.com',
       to: customerEmail,
-      subject: `Quote for ${serviceTitle} - Reliable Mechanics`,
+      subject: `Quote for ${serviceTitle} - J2 Mechanics`,
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Quote - Reliable Mechanics</title>
+          <title>Quote - J2 Mechanics</title>
           <style>
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -512,17 +516,22 @@ const sendQuoteEmail = async (customerEmail, customerName, serviceTitle, quotedP
             .logo { 
               width: 80px; 
               height: 80px; 
-              background-color: #111111; 
               border-radius: 50%; 
               margin: 0 auto 20px; 
               display: flex; 
               align-items: center; 
               justify-content: center; 
-              font-size: 32px; 
-              font-weight: bold; 
-              color: #ffd600; 
+              background-color: #000000;
+              border: 3px solid #000000;
+              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+              overflow: hidden;
             }
-            .logo::before { content: "🔧"; }
+            .logo img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              border-radius: 50%;
+            }
             .header h1 { 
               font-size: 28px; 
               font-weight: 900; 
@@ -649,7 +658,9 @@ const sendQuoteEmail = async (customerEmail, customerName, serviceTitle, quotedP
         <body>
           <div class="container">
             <div class="header">
-              <div class="logo"></div>
+              <div class="logo">
+                <img src="https://res.cloudinary.com/dftnqqcjz/image/upload/v1758601436/serviceImages/vvq5ybkap5lqkmmuewsj.png" alt="J2 Mechanics Logo" />
+              </div>
               <h1>Quote Ready!</h1>
               <p>Your personalized service quote is ready</p>
             </div>
@@ -672,13 +683,12 @@ const sendQuoteEmail = async (customerEmail, customerName, serviceTitle, quotedP
               </div>
               <div class="contact-info">
                 <p><strong>Need Help?</strong></p>
-                <p><strong>Phone:</strong> +44 20 1234 5678</p>
-                <p><strong>Email:</strong> <a href="mailto:aryanarshad5413@gmail.com" class="email">aryanarshad5413@gmail.com</a></p>
-                <p><strong>Address:</strong> 123 Workshop Street, London, UK</p>
+                <p><strong>Phone:</strong> +07498543901</p>
+                <p><strong>Email:</strong> <a href="mailto:j2mechanicslondon@gmail.com" class="email">j2mechanicslondon@gmail.com</a></p>
               </div>
             </div>
             <div class="footer">
-              <p>Thank you for choosing <span class="highlight">Reliable Mechanics</span></p>
+              <p>Thank you for choosing <span class="highlight">J2 Mechanics</span></p>
               <p>Professional automotive services you can trust</p>
             </div>
           </div>
@@ -2586,16 +2596,16 @@ app.post('/api/forgot-password', async (req, res) => {
 
     // Send email with reset link
     const mailOptions = {
-      from: 'aryanarshad5413@gmail.com',
+      from: 'j2mechanicslondon@gmail.com',
       to: email,
-      subject: 'Password Reset Request - Reliable Mechanics',
+      subject: 'Password Reset Request - J2 Mechanics',
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Password Reset - Reliable Mechanics</title>
+          <title>Password Reset - J2 Mechanics</title>
           <style>
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -2617,6 +2627,28 @@ app.post('/api/forgot-password', async (req, res) => {
               background: linear-gradient(135deg, #ffd700, #ffed4e); 
               padding: 40px; 
               text-align: center; 
+            }
+            .logo-container {
+              margin-bottom: 20px;
+            }
+            .logo { 
+              width: 80px; 
+              height: 80px; 
+              border-radius: 50%; 
+              margin: 0 auto; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center; 
+              background-color: #000000;
+              border: 3px solid #000000;
+              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+              overflow: hidden;
+            }
+            .logo img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              border-radius: 50%;
             }
             .header h1 { 
               color: #000000; 
@@ -2670,6 +2702,11 @@ app.post('/api/forgot-password', async (req, res) => {
         <body>
           <div class="container">
             <div class="header">
+              <div class="logo-container">
+                <div class="logo">
+                  <img src="https://res.cloudinary.com/dftnqqcjz/image/upload/v1758601436/serviceImages/vvq5ybkap5lqkmmuewsj.png" alt="J2 Mechanics Logo" />
+                </div>
+              </div>
               <h1>PASSWORD RESET</h1>
             </div>
             <div class="content">
@@ -2682,7 +2719,7 @@ app.post('/api/forgot-password', async (req, res) => {
                   Hello ${user.name || 'there'},
                 </p>
                 <p style="color: #ffffff; font-size: 16px; margin-bottom: 20px;">
-                  We received a request to reset your password for your Reliable Mechanics account.
+                  We received a request to reset your password for your J2 Mechanics account.
                 </p>
                 <p style="color: #ffffff; font-size: 16px; margin-bottom: 20px;">
                   Click the button below to reset your password:
@@ -2716,8 +2753,8 @@ app.post('/api/forgot-password', async (req, res) => {
               </div>
             </div>
             <div class="footer">
-              <p>Thank you for choosing <span style="color: #ffd700; font-weight: 800;">Reliable Mechanics</span></p>
-              <p>For any questions, contact us at aryanarshad5413@gmail.com</p>
+              <p>Thank you for choosing <span style="color: #ffd700; font-weight: 800;">J2 Mechanics</span></p>
+              <p>For any questions, contact us at j2mechanicslondon@gmail.com</p>
             </div>
           </div>
         </body>
@@ -2771,16 +2808,16 @@ app.post('/api/reset-password', async (req, res) => {
 
     // Send confirmation email
     const mailOptions = {
-      from: 'aryanarshad5413@gmail.com',
+      from: 'j2mechanicslondon@gmail.com',
       to: user.email,
-      subject: 'Password Successfully Reset - Reliable Mechanics',
+      subject: 'Password Successfully Reset - J2 Mechanics',
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Password Reset Success - Reliable Mechanics</title>
+          <title>Password Reset Success - J2 Mechanics</title>
           <style>
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -2814,6 +2851,28 @@ app.post('/api/reset-password', async (req, res) => {
               padding: 40px; 
               background-color: #181818; 
             }
+            .logo-container {
+              margin-bottom: 20px;
+            }
+            .logo { 
+              width: 80px; 
+              height: 80px; 
+              border-radius: 50%; 
+              margin: 0 auto; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center; 
+              background-color: #000000;
+              border: 3px solid #000000;
+              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+              overflow: hidden;
+            }
+            .logo img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              border-radius: 50%;
+            }
             .success-box {
               background-color: #232323;
               border-radius: 12px;
@@ -2844,6 +2903,11 @@ app.post('/api/reset-password', async (req, res) => {
         <body>
           <div class="container">
             <div class="header">
+              <div class="logo-container">
+                <div class="logo">
+                  <img src="https://res.cloudinary.com/dftnqqcjz/image/upload/v1758601436/serviceImages/vvq5ybkap5lqkmmuewsj.png" alt="J2 Mechanics Logo" />
+                </div>
+              </div>
               <h1>PASSWORD RESET SUCCESS</h1>
             </div>
             <div class="content">
@@ -2866,13 +2930,13 @@ app.post('/api/reset-password', async (req, res) => {
                 </div>
                 
                 <p style="color: #cccccc; font-size: 14px; margin-top: 20px;">
-                  If you didn't reset your password, please contact us immediately at aryanarshad5413@gmail.com
+                  If you didn't reset your password, please contact us immediately at j2mechanicslondon@gmail.com
                 </p>
               </div>
             </div>
             <div class="footer">
-              <p>Thank you for choosing <span style="color: #00ff00; font-weight: 800;">Reliable Mechanics</span></p>
-              <p>For any questions, contact us at aryanarshad5413@gmail.com</p>
+              <p>Thank you for choosing <span style="color: #00ff00; font-weight: 800;">J2 Mechanics</span></p>
+              <p>For any questions, contact us at j2mechanicslondon@gmail.com</p>
             </div>
           </div>
         </body>
@@ -2906,7 +2970,7 @@ app.post('/api/contact', async (req, res) => {
 
     // Send email to company
     const mailOptions = {
-      from: 'aryanarshad5413@gmail.com',
+      from: 'j2mechanicslondon@gmail.com',
       to: 'j2mechanicslondon@gmail.com', // Company email
       subject: `Contact Form: ${subject} - ${name}`,
       html: `
@@ -2915,7 +2979,7 @@ app.post('/api/contact', async (req, res) => {
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>New Contact Form Submission - Reliable Mechanics</title>
+          <title>New Contact Form Submission - J2 Mechanics</title>
           <style>
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -3047,7 +3111,7 @@ app.post('/api/contact', async (req, res) => {
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Email:</span>
-                  <span class="detail-value">${email}</span>
+                  <span class="detail-value">j2mechanics@gmail.com</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Subject:</span>
@@ -3081,7 +3145,7 @@ app.post('/api/contact', async (req, res) => {
               </div>
             </div>
             <div class="footer">
-              <p>Thank you for choosing <span style="color: #ffd700; font-weight: 800;">Reliable Mechanics</span></p>
+              <p>Thank you for choosing <span style="color: #ffd700; font-weight: 800;">J2 Mechanics</span></p>
               <p>This is an automated notification from your website contact form</p>
             </div>
           </div>
@@ -3092,16 +3156,16 @@ app.post('/api/contact', async (req, res) => {
 
     // Also send confirmation email to the user
     const userConfirmationEmail = {
-      from: 'aryanarshad5413@gmail.com',
+      from: 'j2mechanicslondon@gmail.com',
       to: email,
-      subject: 'Thank you for contacting Reliable Mechanics',
+      subject: 'Thank you for contacting J2 Mechanics',
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Thank you for contacting us - Reliable Mechanics</title>
+          <title>Thank you for contacting us - J2 Mechanics</title>
           <style>
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -3213,7 +3277,7 @@ app.post('/api/contact', async (req, res) => {
               </div>
             </div>
             <div class="footer">
-              <p>Thank you for choosing <span style="color: #ffd700; font-weight: 800;">Reliable Mechanics</span></p>
+              <p>Thank you for choosing <span style="color: #ffd700; font-weight: 800;">J2 Mechanics</span></p>
               <p>We look forward to serving you!</p>
             </div>
           </div>
@@ -5761,16 +5825,16 @@ const Message = mongoose.model('Message', messageSchema);
 const sendMessageNotificationEmail = async (recipientEmail, recipientName, senderName, message, bookingId) => {
   try {
     const mailOptions = {
-      from: 'aryanarshad5413@gmail.com',
+      from: 'j2mechanicslondon@gmail.com',
       to: recipientEmail,
-      subject: `New Message from ${senderName} - Reliable Mechanics`,
+      subject: `New Message from ${senderName} - J2 Mechanics`,
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>New Message - Reliable Mechanics</title>
+          <title>New Message - J2 Mechanics</title>
           <style>
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -5804,6 +5868,28 @@ const sendMessageNotificationEmail = async (recipientEmail, recipientName, sende
               padding: 40px; 
               background-color: #181818; 
             }
+            .logo-container {
+              margin-bottom: 20px;
+            }
+            .logo { 
+              width: 80px; 
+              height: 80px; 
+              border-radius: 50%; 
+              margin: 0 auto; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center; 
+              background-color: #000000;
+              border: 3px solid #000000;
+              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+              overflow: hidden;
+            }
+            .logo img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              border-radius: 50%;
+            }
             .message-box {
               background-color: #232323;
               border-radius: 12px;
@@ -5834,6 +5920,11 @@ const sendMessageNotificationEmail = async (recipientEmail, recipientName, sende
         <body>
           <div class="container">
             <div class="header">
+              <div class="logo-container">
+                <div class="logo">
+                  <img src="https://res.cloudinary.com/dftnqqcjz/image/upload/v1758601436/serviceImages/vvq5ybkap5lqkmmuewsj.png" alt="J2 Mechanics Logo" />
+                </div>
+              </div>
               <h1>NEW MESSAGE</h1>
             </div>
             <div class="content">
@@ -5849,8 +5940,8 @@ const sendMessageNotificationEmail = async (recipientEmail, recipientName, sende
             
             </div>
             <div class="footer">
-              <p>Thank you for choosing <strong>Reliable Mechanics</strong></p>
-              <p>For any questions, please contact us at aryanarshad5413@gmail.com</p>
+              <p>Thank you for choosing <strong>J2 Mechanics</strong></p>
+              <p>For any questions, please contact us at j2mechanicslondon@gmail.com</p>
             </div>
           </div>
         </body>
@@ -6081,7 +6172,7 @@ app.post('/api/bookings/:bookingId/messages', async (req, res) => {
       recipientName = booking.customer.name;
     } else {
       // Customer is sending, notify admin
-      recipientEmail = 'aryanarshad5413@gmail.com'; // Default admin email
+      recipientEmail = 'j2mechanicslondon@gmail.com'; // Default admin email
       recipientName = 'Admin Staff';
     }
 
@@ -6336,7 +6427,7 @@ app.post('/api/email-reply', async (req, res) => {
     // Send email notification to admin
     console.log('📧 Sending notification to admin...');
     await sendMessageNotificationEmail(
-      'aryanarshad5413@gmail.com',
+      'j2mechanicslondon@gmail.com',
       'Admin Staff',
       customerNameToUse,
       message,

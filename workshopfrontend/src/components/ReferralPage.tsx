@@ -96,7 +96,7 @@ const ReferralPage: React.FC = () => {
             maxWidth: '700px',
             margin: '0 auto'
           }}>
-            Share your unique referral code with friends and earn <strong style={{ color: '#ffd600' }}>$5</strong> 
+            Share your unique referral code with friends and earn <strong style={{ color: '#ffd600' }}>£5</strong> 
             {' '}for every friend who creates their first booking!
           </p>
         </div>

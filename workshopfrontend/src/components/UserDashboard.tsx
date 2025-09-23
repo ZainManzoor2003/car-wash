@@ -53,10 +53,9 @@ const UserDashboard: React.FC = () => {
         fontWeight: '600',
         marginBottom: '15px',
         display: 'inline-block',
-        textTransform: 'uppercase',
         letterSpacing: '0.5px'
       }}>
-        {discountPercent}% OFF
+        {discountPercent}% off with premium
       </div>
     );
   };
