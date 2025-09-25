@@ -1206,6 +1206,7 @@ app.get('/api/finance/chart', async (req, res) => {
         profit: revenue - totalExpenses
       };
     });
+    
 
     res.json({ success: true, data: chartData });
   } catch (error) {

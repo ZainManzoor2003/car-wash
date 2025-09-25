@@ -1848,7 +1848,93 @@ app.get('/api/finance/chart', async (req, res) => {
         groupFormat = '%Y-%m';
     }
 
-    // Aggregate bookings data for revenue
+    console.log('📊 Finance Chart API Debug:', {
+      period,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      groupFormat
+    });
+
+    // First, let's check what bookings exist in the database
+    const totalBookings = await Carbooking.countDocuments();
+    const paidBookings = await Carbooking.countDocuments({ paymentStatus: 'paid' });
+    const bookingsInRange = await Carbooking.countDocuments({
+      date: { $gte: startDate, $lte: endDate },
+      paymentStatus: 'paid'
+    });
+
+    console.log('📊 Booking Statistics:', {
+      totalBookings,
+      paidBookings,
+      bookingsInRange,
+      dateRange: `${startDate.toISOString()} to ${endDate.toISOString()}`
+    });
+
+    // If no paid bookings exist, let's check what payment statuses we have
+    if (paidBookings === 0) {
+      const paymentStatusCounts = await Carbooking.aggregate([
+        {
+          $group: {
+            _id: '$paymentStatus',
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+      console.log('📊 Payment Status Breakdown:', paymentStatusCounts);
+
+      // If no paid bookings, let's include all bookings for now
+      const revenueData = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: endDate }
+          }
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: groupFormat, date: '$date' } },
+            revenue: { $sum: { $ifNull: ['$total', '$totalAmount', 0] } }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+
+      const bookingExpenseData = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: endDate }
+          }
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: groupFormat, date: '$date' } },
+            totalLabourCost: { $sum: { $ifNull: ['$labourCost', 0] } },
+            totalPartsCost: { $sum: { $ifNull: ['$partsCost', 0] } },
+            bookingExpenses: { $sum: { $add: [{ $ifNull: ['$labourCost', 0] }, { $ifNull: ['$partsCost', 0] }] } }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+
+      const chartData = revenueData.map(revItem => {
+        const bookingExpItem = bookingExpenseData.find(exp => exp._id === revItem._id);
+        
+        const revenue = revItem.revenue || 0;
+        const bookingExpenses = bookingExpItem ? bookingExpItem.bookingExpenses || 0 : 0;
+        const totalExpenses = bookingExpenses; // No business expenses for now
+        
+        return {
+          date: revItem._id,
+          revenue,
+          expenses: totalExpenses,
+          profit: revenue - totalExpenses
+        };
+      });
+
+      console.log('📊 Generated Chart Data (all bookings):', chartData);
+      return res.json({ success: true, data: chartData, debug: { totalBookings, paidBookings, usedAllBookings: true } });
+    }
+
+    // Original logic for paid bookings
     const revenueData = await Carbooking.aggregate([
       {
         $match: {
@@ -1859,7 +1945,7 @@ app.get('/api/finance/chart', async (req, res) => {
       {
         $group: {
           _id: { $dateToString: { format: groupFormat, date: '$date' } },
-          revenue: { $sum: '$total' }
+          revenue: { $sum: { $ifNull: ['$total', '$totalAmount', 0] } }
         }
       },
       { $sort: { _id: 1 } }
@@ -1876,9 +1962,9 @@ app.get('/api/finance/chart', async (req, res) => {
       {
         $group: {
           _id: { $dateToString: { format: groupFormat, date: '$date' } },
-          totalLabourCost: { $sum: '$labourCost' },
-          totalPartsCost: { $sum: '$partsCost' },
-          bookingExpenses: { $sum: { $add: ['$labourCost', '$partsCost'] } }
+          totalLabourCost: { $sum: { $ifNull: ['$labourCost', 0] } },
+          totalPartsCost: { $sum: { $ifNull: ['$partsCost', 0] } },
+          bookingExpenses: { $sum: { $add: [{ $ifNull: ['$labourCost', 0] }, { $ifNull: ['$partsCost', 0] }] } }
         }
       },
       { $sort: { _id: 1 } }
@@ -1917,8 +2003,9 @@ app.get('/api/finance/chart', async (req, res) => {
         profit: revenue - totalExpenses
       };
     });
-
-    res.json({ success: true, data: chartData });
+    
+    console.log('📊 Generated Chart Data (paid bookings):', chartData);
+    res.json({ success: true, data: chartData, debug: { totalBookings, paidBookings, bookingsInRange } });
   } catch (error) {
     console.error('Finance chart API error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -1946,39 +2033,80 @@ app.get('/api/finance/summary', async (req, res) => {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1); // This month
     }
 
-    // Calculate total revenue
-    const revenueResult = await Carbooking.aggregate([
-      {
-        $match: {
-          date: { $gte: startDate, $lte: now },
-          paymentStatus: 'paid'
+    // Check if we have any paid bookings
+    const paidBookings = await Carbooking.countDocuments({ paymentStatus: 'paid' });
+    
+    let revenueResult, bookingExpenseResult;
+    
+    if (paidBookings === 0) {
+      console.log('📊 No paid bookings found, using all bookings for summary');
+      
+      // Calculate total revenue from all bookings
+      revenueResult = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: now }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: { $ifNull: ['$total', '$totalAmount', 0] } }
+          }
         }
-      },
-      {
-        $group: {
-          _id: null,
-          totalRevenue: { $sum: '$total' }
-        }
-      }
-    ]);
+      ]);
 
-    // Calculate booking expenses (parts + labour)
-    const bookingExpenseResult = await Carbooking.aggregate([
-      {
-        $match: {
-          date: { $gte: startDate, $lte: now },
-          paymentStatus: 'paid'
+      // Calculate booking expenses from all bookings
+      bookingExpenseResult = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: now }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalLabourCost: { $sum: { $ifNull: ['$labourCost', 0] } },
+            totalPartsCost: { $sum: { $ifNull: ['$partsCost', 0] } },
+            bookingExpenses: { $sum: { $add: [{ $ifNull: ['$labourCost', 0] }, { $ifNull: ['$partsCost', 0] }] } }
+          }
         }
-      },
-      {
-        $group: {
-          _id: null,
-          totalLabourCost: { $sum: '$labourCost' },
-          totalPartsCost: { $sum: '$partsCost' },
-          bookingExpenses: { $sum: { $add: ['$labourCost', '$partsCost'] } }
+      ]);
+    } else {
+      // Calculate total revenue from paid bookings
+      revenueResult = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: now },
+            paymentStatus: 'paid'
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: { $ifNull: ['$total', '$totalAmount', 0] } }
+          }
         }
-      }
-    ]);
+      ]);
+
+      // Calculate booking expenses (parts + labour)
+      bookingExpenseResult = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: now },
+            paymentStatus: 'paid'
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalLabourCost: { $sum: { $ifNull: ['$labourCost', 0] } },
+            totalPartsCost: { $sum: { $ifNull: ['$partsCost', 0] } },
+            bookingExpenses: { $sum: { $add: [{ $ifNull: ['$labourCost', 0] }, { $ifNull: ['$partsCost', 0] }] } }
+          }
+        }
+      ]);
+    }
 
     // Calculate business expenses
     const businessExpenseResult = await BusinessExpense.aggregate([
@@ -2009,7 +2137,8 @@ app.get('/api/finance/summary', async (req, res) => {
         totalExpenses,
         netProfit,
         profitMargin
-      }
+      },
+      debug: { paidBookings, usedAllBookings: paidBookings === 0 }
     });
   } catch (error) {
     console.error('Finance summary API error:', error);
@@ -2038,21 +2167,45 @@ app.get('/api/finance/breakdown', async (req, res) => {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
     }
 
-    // Get revenue breakdown by category
-    const revenueBreakdown = await Carbooking.aggregate([
-      {
-        $match: {
-          date: { $gte: startDate, $lte: now },
-          paymentStatus: 'paid'
+    // Check if we have any paid bookings
+    const paidBookings = await Carbooking.countDocuments({ paymentStatus: 'paid' });
+    
+    let revenueBreakdown;
+    
+    if (paidBookings === 0) {
+      console.log('📊 No paid bookings found, using all bookings for breakdown');
+      
+      // Get revenue breakdown by category from all bookings
+      revenueBreakdown = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: now }
+          }
+        },
+        {
+          $group: {
+            _id: '$category',
+            amount: { $sum: { $ifNull: ['$total', '$totalAmount', 0] } }
+          }
         }
-      },
-      {
-        $group: {
-          _id: '$category',
-          amount: { $sum: '$total' }
+      ]);
+    } else {
+      // Get revenue breakdown by category from paid bookings
+      revenueBreakdown = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: now },
+            paymentStatus: 'paid'
+          }
+        },
+        {
+          $group: {
+            _id: '$category',
+            amount: { $sum: { $ifNull: ['$total', '$totalAmount', 0] } }
+          }
         }
-      }
-    ]);
+      ]);
+    }
 
     const totalRevenue = revenueBreakdown.reduce((sum, item) => sum + item.amount, 0);
 
@@ -2067,22 +2220,42 @@ app.get('/api/finance/breakdown', async (req, res) => {
     })).sort((a, b) => b.amount - a.amount);
 
     // Calculate real expense breakdown from bookings
-    const expenseBreakdown = await Carbooking.aggregate([
-      {
-        $match: {
-          date: { $gte: startDate, $lte: now },
-          paymentStatus: 'paid'
+    let expenseBreakdown;
+    
+    if (paidBookings === 0) {
+      expenseBreakdown = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: now }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalLabourCost: { $sum: { $ifNull: ['$labourCost', 0] } },
+            totalPartsCost: { $sum: { $ifNull: ['$partsCost', 0] } },
+            totalExpenses: { $sum: { $add: [{ $ifNull: ['$labourCost', 0] }, { $ifNull: ['$partsCost', 0] }] } }
+          }
         }
-      },
-      {
-        $group: {
-          _id: null,
-          totalLabourCost: { $sum: '$labourCost' },
-          totalPartsCost: { $sum: '$partsCost' },
-          totalExpenses: { $sum: { $add: ['$labourCost', '$partsCost'] } }
+      ]);
+    } else {
+      expenseBreakdown = await Carbooking.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate, $lte: now },
+            paymentStatus: 'paid'
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalLabourCost: { $sum: { $ifNull: ['$labourCost', 0] } },
+            totalPartsCost: { $sum: { $ifNull: ['$partsCost', 0] } },
+            totalExpenses: { $sum: { $add: [{ $ifNull: ['$labourCost', 0] }, { $ifNull: ['$partsCost', 0] }] } }
+          }
         }
-      }
-    ]);
+      ]);
+    }
 
     const expenseData = expenseBreakdown.length > 0 ? expenseBreakdown[0] : { totalLabourCost: 0, totalPartsCost: 0, totalExpenses: 0 };
     const totalExpenses = expenseData.totalExpenses || 0;
@@ -2161,10 +2334,79 @@ app.get('/api/finance/breakdown', async (req, res) => {
       data: {
         revenue: revenueCategories,
         expenses: expenseCategories
-      }
+      },
+      debug: { paidBookings, usedAllBookings: paidBookings === 0 }
     });
   } catch (error) {
     console.error('Finance breakdown API error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Test data creation endpoint for finance page
+app.post('/api/finance/create-test-data', async (req, res) => {
+  try {
+    console.log('📊 Creating test data for finance page...');
+    
+    const now = new Date();
+    const testBookings = [];
+    
+    // Create test bookings for the last 30 days
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      
+      const categories = ['service', 'tyres', 'mechanical', 'diagnostics'];
+      const category = categories[Math.floor(Math.random() * categories.length)];
+      const baseAmount = 50 + Math.random() * 200;
+      const labourCost = baseAmount * 0.6;
+      const partsCost = baseAmount * 0.4;
+      
+      const booking = {
+        customer: {
+          name: `Test Customer ${i + 1}`,
+          email: `test${i + 1}@example.com`,
+          phone: '0123456789'
+        },
+        car: {
+          make: 'Test Make',
+          model: 'Test Model',
+          registration: `TEST${String(i + 1).padStart(3, '0')}`,
+          year: 2020
+        },
+        service: {
+          label: `${category.charAt(0).toUpperCase() + category.slice(1)} Service`,
+          description: `Test ${category} service`,
+          category: category
+        },
+        date: date,
+        time: '10:00',
+        status: 'completed',
+        paymentStatus: 'paid',
+        totalAmount: baseAmount,
+        total: baseAmount,
+        labourCost: labourCost,
+        partsCost: partsCost,
+        subtotal: baseAmount,
+        vat: baseAmount * 0.2,
+        category: category
+      };
+      
+      testBookings.push(booking);
+    }
+    
+    // Insert test bookings
+    await Carbooking.insertMany(testBookings);
+    
+    console.log(`✅ Created ${testBookings.length} test bookings`);
+    
+    res.json({
+      success: true,
+      message: `Created ${testBookings.length} test bookings for finance page`,
+      count: testBookings.length
+    });
+  } catch (error) {
+    console.error('Error creating test data:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

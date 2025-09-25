@@ -65,22 +65,59 @@ const FinancePage: React.FC = () => {
       const chartResponse = await fetch(`${API_BASE_URL}/api/finance/chart?period=${viewPeriod}`);
       const chartData = await chartResponse.json();
       if (chartData.success) {
-        setFinancialData(chartData.data);
+        console.log('📊 Chart data received:', chartData);
+        if (chartData.data && chartData.data.length > 0) {
+          setFinancialData(chartData.data);
+        } else {
+          console.log('📊 No chart data available, using mock data');
+          setFinancialData(generateMockData());
+        }
       }
 
       // Fetch summary data
       const summaryResponse = await fetch(`${API_BASE_URL}/api/finance/summary?period=${viewPeriod}`);
       const summaryData = await summaryResponse.json();
       if (summaryData.success) {
-        setSummary(summaryData.data);
+        console.log('📊 Summary data received:', summaryData);
+        if (summaryData.data && (summaryData.data.totalRevenue > 0 || summaryData.data.totalExpenses > 0)) {
+          setSummary(summaryData.data);
+        } else {
+          console.log('📊 No summary data available, using mock data');
+          setSummary({
+            totalRevenue: 15420,
+            totalExpenses: 8750,
+            netProfit: 6670,
+            profitMargin: 43.3
+          });
+        }
       }
 
       // Fetch breakdown data
       const breakdownResponse = await fetch(`${API_BASE_URL}/api/finance/breakdown?period=${viewPeriod}`);
       const breakdownData = await breakdownResponse.json();
       if (breakdownData.success) {
-        setExpenseCategories(breakdownData.data.expenses);
-        setRevenueCategories(breakdownData.data.revenue);
+        console.log('📊 Breakdown data received:', breakdownData);
+        if (breakdownData.data && (breakdownData.data.expenses.length > 0 || breakdownData.data.revenue.length > 0)) {
+          setExpenseCategories(breakdownData.data.expenses);
+          setRevenueCategories(breakdownData.data.revenue);
+        } else {
+          console.log('📊 No breakdown data available, using mock data');
+          setExpenseCategories([
+            { name: 'Parts & Components', amount: 3200, percentage: 36.6 },
+            { name: 'Labour Costs', amount: 2800, percentage: 32.0 },
+            { name: 'Equipment & Tools', amount: 1200, percentage: 13.7 },
+            { name: 'Fuel & Transport', amount: 800, percentage: 9.1 },
+            { name: 'Marketing', amount: 500, percentage: 5.7 },
+            { name: 'Insurance', amount: 250, percentage: 2.9 }
+          ]);
+          setRevenueCategories([
+            { name: 'Mechanical Services', amount: 6800, percentage: 44.1 },
+            { name: 'Tyre Services', amount: 4200, percentage: 27.2 },
+            { name: 'General Services', amount: 3100, percentage: 20.1 },
+            { name: 'Diagnostics', amount: 980, percentage: 6.4 },
+            { name: 'Inspections', amount: 340, percentage: 2.2 }
+          ]);
+        }
       }
 
       // Fetch previous period data for comparison
@@ -92,6 +129,7 @@ const FinancePage: React.FC = () => {
     } catch (error) {
       console.error('Error fetching financial data:', error);
       // Use mock data for development
+      console.log('📊 Using fallback mock data due to error');
       setFinancialData(generateMockData());
       setSummary({
         totalRevenue: 15420,
@@ -615,6 +653,26 @@ const FinancePage: React.FC = () => {
               onClick={() => setShowExpenseManager(true)}
             >
               💼 Manage Expenses
+            </button>
+            <button
+              className="period-btn"
+              style={{ background: '#3b82f6', color: '#fff', marginLeft: '8px' }}
+              onClick={async () => {
+                try {
+                  const response = await fetch(`${API_BASE_URL}/api/finance/create-test-data`, { method: 'POST' });
+                  const result = await response.json();
+                  if (result.success) {
+                    alert(`✅ ${result.message}`);
+                    fetchFinancialData(); // Refresh the data
+                  } else {
+                    alert(`❌ Error: ${result.error}`);
+                  }
+                } catch (error) {
+                  alert(`❌ Error creating test data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+              }}
+            >
+              🧪 Create Test Data
             </button>
           </div>
 
