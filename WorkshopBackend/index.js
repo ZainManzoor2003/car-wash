@@ -5250,6 +5250,118 @@ app.get('/api/test-payment-success', (req, res) => {
   });
 });
 
+// Check if a Stripe session corresponds to a quote request or regular booking
+app.get('/api/check-session-type', async (req, res) => {
+  try {
+    const sessionId = req.query.session_id;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'session_id is required' });
+    }
+
+    let isQuoteRequest = false;
+    let quoteRequest = null;
+
+    // Try via Stripe session metadata first
+    try {
+      if (typeof stripe !== 'undefined' && stripe) {
+        const session = await stripe.checkout.sessions.retrieve(String(sessionId));
+        if (session?.metadata?.quoteRequestId) {
+          isQuoteRequest = true;
+          quoteRequest = await QuoteRequest.findById(session.metadata.quoteRequestId);
+        }
+      }
+    } catch (stripeErr) {
+      console.log('⚠️ Stripe lookup failed, falling back to DB search');
+    }
+
+    // Fallback: find quote request whose paymentLink contains the session ID
+    if (!isQuoteRequest) {
+      quoteRequest = await QuoteRequest.findOne({ paymentLink: { $regex: String(sessionId), $options: 'i' } });
+      if (quoteRequest) {
+        isQuoteRequest = true;
+      }
+    }
+
+    return res.json({ success: true, isQuoteRequest, quoteRequest });
+  } catch (error) {
+    console.error('❌ check-session-type error:', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Complete a quote request payment when returning from Stripe success (idempotent)
+app.post('/api/complete-quote-payment', async (req, res) => {
+  try {
+    const { sessionId } = req.body || {};
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
+    }
+
+    // Try to locate the quote request either via Stripe metadata or paymentLink
+    let quoteRequest = null;
+    try {
+      if (typeof stripe !== 'undefined' && stripe) {
+        const session = await stripe.checkout.sessions.retrieve(String(sessionId));
+        if (session?.metadata?.quoteRequestId) {
+          quoteRequest = await QuoteRequest.findById(session.metadata.quoteRequestId);
+        }
+      }
+    } catch (stripeErr) {
+      console.log('⚠️ Stripe lookup failed, falling back to DB search');
+    }
+
+    if (!quoteRequest) {
+      quoteRequest = await QuoteRequest.findOne({ paymentLink: { $regex: String(sessionId), $options: 'i' } });
+    }
+
+    if (!quoteRequest) {
+      return res.status(404).json({ error: 'Quote request not found for session' });
+    }
+
+    // If already processed, return success idempotently
+    if (quoteRequest.paymentStatus === 'paid' || quoteRequest.status === 'accepted') {
+      return res.json({ success: true, message: 'Quote payment already processed', quoteRequest });
+    }
+
+    // Mark quote as paid/accepted
+    quoteRequest.paymentStatus = 'paid';
+    quoteRequest.status = 'accepted';
+    await quoteRequest.save();
+
+    // Create a basic booking entry for the paid quote
+    const bookingDoc = await Carbooking.create({
+      customer: {
+        name: quoteRequest.customerName || 'Customer',
+        email: quoteRequest.customerEmail || 'unknown@example.com',
+        phone: quoteRequest.customerPhone || ''
+      },
+      car: {
+        make: quoteRequest.carMake || '',
+        model: quoteRequest.carModel || '',
+        registration: quoteRequest.carRegistration || '',
+        year: quoteRequest.carYear || ''
+      },
+      service: {
+        label: quoteRequest.serviceTitle || 'Service',
+        description: quoteRequest.quotedDetails || 'Quote request service'
+      },
+      date: quoteRequest.preferredDateTime ? new Date(quoteRequest.preferredDateTime) : new Date(),
+      time: quoteRequest.preferredDateTime ? new Date(quoteRequest.preferredDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '09:00',
+      status: 'confirmed',
+      paymentStatus: 'paid',
+      stripeSessionId: String(sessionId),
+      totalAmount: quoteRequest.quotedPrice || 0,
+      total: quoteRequest.quotedPrice || 0,
+      category: 'service'
+    });
+
+    return res.json({ success: true, message: 'Quote request payment processed', quoteRequest, bookingId: bookingDoc._id });
+  } catch (error) {
+    console.error('❌ complete-quote-payment error:', error);
+    return res.status(500).json({ error: 'Failed to process quote payment' });
+  }
+});
+
 // Direct booking creation endpoint (bypasses PaymentSuccessPage)
 app.post('/api/create-booking-direct', async (req, res) => {
   try {
