@@ -3016,16 +3016,16 @@ app.post('/api/create-checkout-session', async (req, res) => {
       payment_method_types: ['card'],
       line_items_count: lineItems.length,
       mode: 'payment',
-      success_url: `https://workshopfrontend-one.vercel.app/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `https://workshopfrontend-one.vercel.app/payment-cancelled`
+      success_url: `https://car-wash-client-seven.vercel.app/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `https://car-wash-client-seven.vercel.app/payment-cancelled`
     });
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: lineItems,
       mode: 'payment',
-      success_url: `https://workshopfrontend-one.vercel.app/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `https://workshopfrontend-one.vercel.app/payment-cancelled`,
+      success_url: `https://car-wash-client-seven.vercel.app/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `https://car-wash-client-seven.vercel.app/payment-cancelled`,
       metadata: {
         customerEmail,
         customerName,
